@@ -30,6 +30,9 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+// TODO: create sleep queue
+// define struct sleep_list_elem
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -90,6 +93,13 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
+
+  // TODO: disable interrupts
+
+  // add a new element to our pqueue with weight start+ticks and a pointer to the current thread
+  // move this thread to the not-ready queue
+
+  // re-enable interrupts
 
   ASSERT (intr_get_level () == INTR_ON);
   while (timer_elapsed (start) < ticks) 
@@ -171,6 +181,15 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+
+  // TODO: disable interrupts
+
+  // peek at the first element of pqueue
+  // while it's equal to ticks:
+  //   remove it and move the associated thread to the ready queue
+
+  // re-enable interrupts
+
   thread_tick ();
 }
 
