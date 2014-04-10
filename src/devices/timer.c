@@ -99,7 +99,7 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
   struct thread *curr_t = thread_current();
   curr_t->wakeup_time = start + ticks;
-  list_insert(&sleep_list, &curr_t->sleepelem);
+  list_insert(list_tail(&sleep_list), &curr_t->sleepelem);
   thread_block();  
   intr_set_level (old_level);
 }
@@ -179,7 +179,6 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
-  thread_tick ();
 
   struct list_elem * e;
   for(e = list_begin(&sleep_list); e != list_end(&sleep_list);)
@@ -193,13 +192,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
       }
     }
 
-  // TODO: disable interrupts
-
-  // peek at the first element of pqueue
-  // while it's equal to ticks:
-  //   remove it and move the associated thread to the ready queue
-
-  // re-enable interrupts
+  thread_tick ();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
