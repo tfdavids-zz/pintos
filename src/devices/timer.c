@@ -32,6 +32,17 @@ static void real_time_delay (int64_t num, int32_t denom);
 
 static struct list sleep_list; 
 
+bool
+sleeplist_less_func (const struct list_elem *a,
+                     const struct list_elem *b,
+                     void *aux)
+{
+  struct thread *t1 = list_entry(a, struct thread, sleepelem);
+  struct thread *t2 = list_entry(b, struct thread, sleepelem);
+
+  return t1->wakeup_time < t2->wakeup_time ? true : false;
+}
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -97,9 +108,9 @@ timer_sleep (int64_t ticks)
   enum intr_level old_level = intr_disable ();
 
   int64_t start = timer_ticks ();
-  struct thread *curr_t = thread_current();
+  struct thread *curr_t = thread_current ();
   curr_t->wakeup_time = start + ticks;
-  list_insert(list_tail(&sleep_list), &curr_t->sleepelem);
+  list_insert_ordered(&sleep_list, &curr_t->sleepelem, &sleeplist_less_func, NULL);
   thread_block();  
   intr_set_level (old_level);
 }
@@ -188,7 +199,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 	e = list_remove(e);
 	thread_unblock(t);
       } else {
-	e = list_next(e);
+        break;
       }
     }
 
