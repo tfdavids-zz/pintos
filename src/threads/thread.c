@@ -92,6 +92,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&lock_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -462,6 +463,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->effective_prio = priority;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
