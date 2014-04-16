@@ -178,6 +178,7 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
+  lock->priority = -1;
   sema_init (&lock->semaphore, 1);
 }
 
@@ -195,6 +196,26 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
+
+  enum intr_level old_level;
+  old_level = intr_disable();
+
+  int ep = thread_current()->effective_prio;
+
+  // push the lock onto our queue
+  list_push_front(&thread_current()->lock_list, &lock->elem);
+
+  // push our priority to the lock
+  if (ep > lock->priority) {
+    lock->priority = ep;
+  }
+
+  // push our priority to the lock's holder
+  if (lock->holder && lock->holder->effective_prio < ep) {
+    lock->holder->effective_prio = ep;
+  }
+
+  intr_set_level (old_level);
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
@@ -232,7 +253,33 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
+  lock->priority = -1;
   sema_up (&lock->semaphore);
+
+  // re-calculate my priority from the locks I still hold
+  
+  enum intr_level old_level;
+  old_level = intr_disable();
+
+  struct list_elem *e;
+
+  for (e = list_begin(&thread_current()->lock_list);
+       e != list_end(&thread_current()->lock_list);
+       e = list_next(e)) {
+
+    struct lock *l = list_entry(e, struct lock, elem);
+    if (l == lock) {
+      struct list_elem *tmp = e;
+      e = list_next(e);
+      list_remove(tmp);
+    }
+
+    else if (l->priority > thread_current ()->priority) {
+      thread_current ()->priority = l->priority;
+    }
+  }
+
+  intr_set_level(old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
