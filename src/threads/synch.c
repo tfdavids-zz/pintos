@@ -200,13 +200,11 @@ lock_acquire (struct lock *lock)
   enum intr_level old_level;
   old_level = intr_disable();
 
-  int ep = thread_current()->eff_priority;
-
-  // push the lock onto our queue
-  list_push_front(&thread_current()->lock_list, &lock->elem);
+  struct thread *current_thread = thread_current();
+  int ep = current_thread->eff_priority;
 
   // push our priority to the lock
-  if (ep > lock->priority) {
+  if (lock->priority < ep) {
     lock->priority = ep;
   }
 
@@ -218,6 +216,10 @@ lock_acquire (struct lock *lock)
   intr_set_level (old_level);
 
   sema_down (&lock->semaphore);
+
+  // push the lock onto our queue
+  list_push_front(&current_thread->lock_list, &lock->elem);
+
   lock->holder = thread_current ();
 }
 
@@ -264,19 +266,20 @@ lock_release (struct lock *lock)
 
   struct list_elem *e;
   for (e = list_begin(&curr_thread->lock_list);
-       e != list_end(&curr_thread->lock_list);
-       e = list_next(e))
+       e != list_end(&curr_thread->lock_list);)
     {
       struct lock *l = list_entry(e, struct lock, elem);
       if (l == lock)
         {
-          struct list_elem *tmp = e;
-          e = list_prev(e);
-          list_remove(tmp);
+          e = list_remove(e);
         }
-      else if (l->priority > curr_thread->eff_priority)
+      else
         {
-          curr_thread->eff_priority = l->priority;
+          if (l->priority > curr_thread->eff_priority)
+            {
+              curr_thread->eff_priority = l->priority;
+            }
+          e = list_next(e);
         }
     }
 
