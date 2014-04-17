@@ -213,24 +213,24 @@ lock_acquire (struct lock *lock)
   struct thread *current_thread = thread_current();
   int ep = current_thread->eff_priority;
 
-  // push our priority to the lock
-  if (lock->priority < ep) {
-    lock->priority = ep;
-  }
+  struct lock * curr_lock = lock;
 
-  // push our priority to the lock's holder
-  if (lock->holder && lock->holder->eff_priority < ep) {
-    lock->holder->eff_priority = ep;
+  while(curr_lock &&
+	curr_lock->holder &&
+	curr_lock->holder->eff_priority < ep){
+    curr_lock->priority = ep;
+    curr_lock->holder->eff_priority = ep;
+    curr_lock = curr_lock->holder->blocking_lock;
   }
-
-  intr_set_level (old_level);
 
   sema_down (&lock->semaphore);
+
+  lock->holder = thread_current ();
 
   // push the lock onto our queue
   list_push_front(&current_thread->lock_list, &lock->elem);
 
-  lock->holder = thread_current ();
+  intr_set_level (old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
