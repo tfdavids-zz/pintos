@@ -40,7 +40,7 @@ sleeplist_less_func (const struct list_elem *a,
   struct thread *t1 = list_entry(a, struct thread, sleepelem);
   struct thread *t2 = list_entry(b, struct thread, sleepelem);
 
-  return t1->wakeup_time < t2->wakeup_time ? true : false;
+  return t1->wakeup_time < t2->wakeup_time;
 }
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
@@ -196,8 +196,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
     {
       struct thread * t = list_entry(e, struct thread, sleepelem);
       if(t->wakeup_time <= timer_ticks()){
-	e = list_remove(e);
-	thread_unblock(t);
+		e = list_remove(e);
+		thread_unblock(t);
       } else {
         break;
       }
