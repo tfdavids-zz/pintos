@@ -346,22 +346,44 @@ void
 thread_set_priority (int new_priority) 
 {
   struct thread *curr = thread_current ();
-  int old_priority = curr->priority;
+  int old_eff_priority = curr->eff_priority;
   curr->priority = new_priority;
   /* TODO: Verify that we should, in fact, always yield
    * if our priority was lowered.
    */
-  if (new_priority < old_priority)
-    thread_yield ();
-  else if (new_priority > curr->eff_priority)
-    curr->eff_priority = new_priority;
+  if (new_priority > curr->eff_priority)
+    {
+      curr->eff_priority = new_priority;
+    }
+  if (new_priority < old_eff_priority)
+    {
+      thread_calculate_priority ();
+      thread_yield ();
+    }
+}
+
+void
+thread_calculate_priority(void)
+{
+  struct thread *curr_thread = thread_current ();
+  curr_thread->eff_priority = curr_thread->priority;
+  struct list_elem *e;
+  for (e = list_begin(&curr_thread->lock_list);
+       e != list_end(&curr_thread->lock_list); e = list_next(e))
+    {
+      struct lock *l = list_entry(e, struct lock, elem);
+      if (l->priority > curr_thread->eff_priority)
+        {
+          curr_thread->eff_priority = l->priority;
+        }
+    }
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  return thread_current ()->eff_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */

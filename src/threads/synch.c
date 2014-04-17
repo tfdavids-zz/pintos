@@ -113,6 +113,7 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
+  /* TODO: Wakeup highest priority */
   if (!list_empty (&sema->waiters)) 
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
@@ -266,22 +267,18 @@ lock_release (struct lock *lock)
 
   struct list_elem *e;
   for (e = list_begin(&curr_thread->lock_list);
-       e != list_end(&curr_thread->lock_list);)
+       e != list_end(&curr_thread->lock_list); e = list_next(e))
     {
       struct lock *l = list_entry(e, struct lock, elem);
       if (l == lock)
         {
-          e = list_remove(e);
-        }
-      else
-        {
-          if (l->priority > curr_thread->eff_priority)
-            {
-              curr_thread->eff_priority = l->priority;
-            }
-          e = list_next(e);
+          list_remove(e);
+          break;
         }
     }
+
+  thread_calculate_priority ();
+  thread_yield ();
 
   intr_set_level(old_level);
 }
