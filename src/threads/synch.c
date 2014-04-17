@@ -216,6 +216,7 @@ lock_acquire (struct lock *lock)
   int ep = current_thread->eff_priority;
 
   struct lock * curr_lock = lock;
+  current_thread->blocking_lock = lock;
 
   while(curr_lock &&
 	curr_lock->holder &&
@@ -228,6 +229,7 @@ lock_acquire (struct lock *lock)
   sema_down (&lock->semaphore);
 
   lock->holder = thread_current ();
+  current_thread->blocking_lock = NULL;
 
   // push the lock onto our queue
   list_push_front(&current_thread->lock_list, &lock->elem);
