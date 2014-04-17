@@ -263,8 +263,8 @@ lock_release (struct lock *lock)
   struct thread *curr_thread = thread_current ();
 
   struct list_elem *e;
-  for (e = list_begin(&thread_current()->lock_list);
-       e != list_end(&thread_current()->lock_list);
+  for (e = list_begin(&curr_thread->lock_list);
+       e != list_end(&curr_thread->lock_list);
        e = list_next(e))
     {
       struct lock *l = list_entry(e, struct lock, elem);
