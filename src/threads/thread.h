@@ -92,7 +92,7 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
 
     struct list lock_list;              /* List of all locks held by thread. */
-
+    struct lock *blocking_lock;          /* A lock the thread is blocked on */
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
