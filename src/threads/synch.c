@@ -268,14 +268,14 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  enum intr_level old_level;
+  old_level = intr_disable();
+
   lock->holder = NULL;
   lock->priority = -1;
-  sema_up (&lock->semaphore);
 
   // re-calculate my priority from the locks I still hold
   
-  enum intr_level old_level;
-  old_level = intr_disable();
   struct thread *curr_thread = thread_current ();
 
   struct list_elem *e;
@@ -291,8 +291,10 @@ lock_release (struct lock *lock)
     }
 
   thread_calculate_priority ();
+  sema_up (&lock->semaphore);
   thread_yield ();
 
+  // TODO: should we enable these sooner (before sema_up)?
   intr_set_level(old_level);
 }
 
