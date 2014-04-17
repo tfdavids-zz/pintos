@@ -200,7 +200,7 @@ lock_acquire (struct lock *lock)
   enum intr_level old_level;
   old_level = intr_disable();
 
-  int ep = thread_current()->effective_prio;
+  int ep = thread_current()->eff_priority;
 
   // push the lock onto our queue
   list_push_front(&thread_current()->lock_list, &lock->elem);
@@ -211,8 +211,8 @@ lock_acquire (struct lock *lock)
   }
 
   // push our priority to the lock's holder
-  if (lock->holder && lock->holder->effective_prio < ep) {
-    lock->holder->effective_prio = ep;
+  if (lock->holder && lock->holder->eff_priority < ep) {
+    lock->holder->eff_priority = ep;
   }
 
   intr_set_level (old_level);
@@ -292,7 +292,7 @@ lock_held_by_current_thread (const struct lock *lock)
 
   return lock->holder == thread_current ();
 }
-
+
 /* One semaphore in a list. */
 struct semaphore_elem 
   {
