@@ -342,7 +342,16 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  struct thread *curr = thread_current ();
+  int old_priority = curr->priority;
+  curr->priority = new_priority;
+  /* TODO: Verify that we should, in fact, always yield
+   * if our priority was lowered.
+   */
+  if (new_priority < old_priority)
+    thread_yield ();
+  else if (new_priority > curr->eff_priority)
+    curr->eff_priority = new_priority;
 }
 
 /* Returns the current thread's priority. */
@@ -502,7 +511,7 @@ next_thread_to_run (void)
 {
   /* TODO */
   int i;
-  for (i = 0; i < NUM_PRIO; i++) {
+  for (i = NUM_PRIO - 1; i >= 0; i--) {
     if (!list_empty(&ready_lists[i]))
       return list_entry(list_pop_front(&ready_lists[i]), struct thread, elem);
   }

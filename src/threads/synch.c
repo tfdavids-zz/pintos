@@ -260,24 +260,25 @@ lock_release (struct lock *lock)
   
   enum intr_level old_level;
   old_level = intr_disable();
+  struct thread *curr_thread = thread_current ();
 
   struct list_elem *e;
-
   for (e = list_begin(&thread_current()->lock_list);
        e != list_end(&thread_current()->lock_list);
-       e = list_next(e)) {
-
-    struct lock *l = list_entry(e, struct lock, elem);
-    if (l == lock) {
-      struct list_elem *tmp = e;
-      e = list_next(e);
-      list_remove(tmp);
+       e = list_next(e))
+    {
+      struct lock *l = list_entry(e, struct lock, elem);
+      if (l == lock)
+        {
+          struct list_elem *tmp = e;
+          e = list_prev(e);
+          list_remove(tmp);
+        }
+      else if (l->priority > curr_thread->eff_priority)
+        {
+          curr_thread->eff_priority = l->priority;
+        }
     }
-
-    else if (l->priority > thread_current ()->priority) {
-      thread_current ()->priority = l->priority;
-    }
-  }
 
   intr_set_level(old_level);
 }
