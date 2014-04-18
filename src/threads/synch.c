@@ -237,13 +237,14 @@ lock_acquire (struct lock *lock)
   struct lock * curr_lock = lock;
   current_thread->blocking_lock = lock;
 
-  while(curr_lock &&
-	curr_lock->holder &&
-	curr_lock->holder->eff_priority < ep){
-    curr_lock->priority = ep;
-    curr_lock->holder->eff_priority = ep;
-    curr_lock = curr_lock->holder->blocking_lock;
-  }
+  while (curr_lock &&
+	 curr_lock->holder &&
+	 curr_lock->holder->eff_priority < ep)
+    {
+      curr_lock->priority = ep;
+      curr_lock->holder->eff_priority = ep;
+      curr_lock = curr_lock->holder->blocking_lock;
+    }
 
   sema_down (&lock->semaphore);
 
@@ -293,23 +294,12 @@ lock_release (struct lock *lock)
   lock->holder = NULL;
   lock->priority = -1;
 
+  // Remove lock from list of locks we hold
+  list_remove (&lock->elem);
+
   // re-calculate my priority from the locks I still hold
-  
-  struct thread *curr_thread = thread_current ();
-
-  struct list_elem *e;
-  for (e = list_begin(&curr_thread->lock_list);
-       e != list_end(&curr_thread->lock_list); e = list_next(e))
-    {
-      struct lock *l = list_entry(e, struct lock, elem);
-      if (l == lock)
-        {
-          list_remove(e);
-          break;
-        }
-    }
-
   thread_calculate_priority ();
+
   sema_up (&lock->semaphore);
   thread_yield ();
 
