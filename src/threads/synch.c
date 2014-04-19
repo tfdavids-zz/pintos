@@ -37,7 +37,6 @@ struct semaphore_elem
   {
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
-    struct thread *thread;              /* Thread waiting on semaphore. */
   };
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
@@ -110,7 +109,8 @@ sema_try_down (struct semaphore *sema)
 }
 
 static bool
-sema_prio_less (const struct list_elem *a, const struct list_elem *b, void *aux)
+sema_prio_less (const struct list_elem *a, const struct list_elem *b,
+		void *aux)
 {
     struct thread *ta = list_entry (a, struct thread, elem);
     struct thread *tb = list_entry (b, struct thread, elem);
@@ -119,12 +119,14 @@ sema_prio_less (const struct list_elem *a, const struct list_elem *b, void *aux)
 }
 
 static bool
-cond_prio_less (const struct list_elem *a, const struct list_elem *b, void *aux)
+cond_prio_less (const struct list_elem *a, const struct list_elem *b,
+		void *aux)
 {
     struct semaphore_elem *sa = list_entry (a, struct semaphore_elem, elem);
     struct semaphore_elem *sb = list_entry (b, struct semaphore_elem, elem);
-
-    return sa->thread->eff_priority < sb->thread->eff_priority;
+    return sema_prio_less (list_front (&sa->semaphore.waiters),
+			   list_front (&sb->semaphore.waiters),
+			   aux);
 }
 
 /* Up or "V" operation on a semaphore.  Increments SEMA's value
