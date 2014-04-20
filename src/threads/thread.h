@@ -5,6 +5,8 @@
 #include <list.h>
 #include <stdint.h>
 
+#include "threads/fixed-point.h"
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -95,6 +97,9 @@ struct thread
     struct lock *blocking_lock;          /* A lock the thread is blocked on */
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+    int nice;
+    fixed_point_t recent_cpu;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
