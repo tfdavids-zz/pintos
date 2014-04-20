@@ -234,20 +234,22 @@ lock_acquire (struct lock *lock)
   old_level = intr_disable();
 
   struct thread *current_thread = thread_current();
-  int ep = current_thread->eff_priority;
-
-  struct lock * curr_lock = lock;
-  current_thread->blocking_lock = lock;
-
-  while (curr_lock &&
-	 curr_lock->holder &&
-	 curr_lock->holder->eff_priority < ep)
+  if(!thread_mlfqs)
     {
-      curr_lock->priority = ep;
-      curr_lock->holder->eff_priority = ep;
-      curr_lock = curr_lock->holder->blocking_lock;
-    }
+      int ep = current_thread->eff_priority;
 
+      struct lock * curr_lock = lock;
+      current_thread->blocking_lock = lock;
+
+      while (curr_lock &&
+	     curr_lock->holder &&
+	     curr_lock->holder->eff_priority < ep)
+	{
+	  curr_lock->priority = ep;
+	  curr_lock->holder->eff_priority = ep;
+	  curr_lock = curr_lock->holder->blocking_lock;
+	}
+    }
   sema_down (&lock->semaphore);
 
   lock->holder = thread_current ();
@@ -300,7 +302,8 @@ lock_release (struct lock *lock)
   list_remove (&lock->elem);
 
   // re-calculate my priority from the locks I still hold
-  thread_calculate_priority ();
+  if(!thread_mlfqs)
+    thread_calculate_priority ();
 
   sema_up (&lock->semaphore);
   thread_yield ();

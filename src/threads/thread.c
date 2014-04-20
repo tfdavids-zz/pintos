@@ -4,6 +4,8 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include "devices/timer.h"
+#include "threads/fixed-point.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -20,6 +22,8 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 #define NUM_PRIO 64
+#define INIT_THREAD_NICE 0
+#define INIT_RECENT_CPU 0
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -73,6 +77,8 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+static fixed_point_t load_avg;
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -103,6 +109,9 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
+  /* Init load_avg for system */
+  load_avg = fix_int(0);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -139,6 +148,34 @@ thread_tick (void)
   else
     kernel_ticks++;
 
+  int total_ticks = idle_ticks + user_ticks + kernel_ticks;
+
+  /* Recompute priority/recent_cpu/load_avg if mlfqs */
+  if(thread_mlfqs)
+    {
+
+      /* Recompute all thread priorities once every 4sec */  
+      if(total_ticks % 4 == 0){
+	thread_foreach(thread_recompute_priority_mlfqs, NULL);
+      }
+
+      /* Increment recent_cpu of running thread(unless idle) */
+      if(thread_current () != idle_thread)
+	thread_current ()->recent_cpu = 
+	  fix_add(thread_current ()->recent_cpu,
+		  fix_int(1));
+
+      /* Recompute recent_cpu of all threads and 
+	 Recompute load_avg for the sys once per sec */
+      if(total_ticks % TIMER_FREQ == 0)
+	{
+
+	  thread_foreach(thread_recompute_recent_cpu_mlfqs, NULL);
+	  recompute_load_avg_mlfqs ();
+	}
+
+    }
+  
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -345,6 +382,10 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  // Ignore if MLFQS
+  if(thread_mlfqs)
+    return;
+
   struct thread *curr = thread_current ();
   int old_eff_priority = curr->eff_priority;
   curr->priority = new_priority;
@@ -390,6 +431,10 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
+
+  struct thread *current_thread = thread_current ();
+  current_thread->nice = nice;
+  
   /* Not yet implemented. */
 }
 
@@ -397,26 +442,90 @@ thread_set_nice (int nice UNUSED)
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  struct thread *current_thread = thread_current();
+  return current_thread->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  fixed_point_t hundred = fix_int(100);
+  return fix_trunc(fix_mul(hundred, load_avg));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+
+  fixed_point_t hundred = fix_int(100);
+  return fix_trunc(fix_mul(hundred,
+			   thread_current ()->recent_cpu));
 }
-
+
+void
+thread_recompute_priority_mlfqs (struct thread *t, void *aux)
+{
+  fixed_point_t four = fix_int(4);
+  int old_priority = t->priority;
+  
+  t->priority = PRI_MAX -
+    fix_trunc(fix_div(t->recent_cpu, four)) -
+    t->nice * 2;
+}
+
+void
+thread_recompute_recent_cpu_mlfqs (struct thread *t, void *aux)
+{
+  fixed_point_t one = fix_int(1);
+  fixed_point_t two = fix_int(2);
+  t->recent_cpu = fix_add(
+			  fix_mul(
+				  fix_div(
+					  fix_mul(two, load_avg),
+					  fix_add(fix_mul(two, load_avg),
+						  one)), 
+				  t->recent_cpu),
+			  fix_int(t->nice));
+}
+
+void
+recompute_load_avg_mlfqs (void)
+{
+  fixed_point_t one = fix_int(1);
+  fixed_point_t fifty_nine = fix_int(59);
+  fixed_point_t sixty = fix_int(60);
+
+  int ready_threads = 0;
+  int i;
+  for (i = 0; i < NUM_PRIO; i++)
+    ready_threads += list_size (&ready_lists[i]);
+  if(thread_current () != idle_thread)
+    ready_threads++;
+  load_avg = fix_add(
+		     fix_mul(
+			     fix_div(fifty_nine, sixty),
+			     load_avg),
+		     fix_mul(
+			     fix_div(one, sixty),
+			     fix_int(ready_threads))
+		     );
+}
+
+void
+recompute_priority_all_threads_mlfqs (void)
+{
+  thread_foreach(thread_recompute_priority_mlfqs, NULL);
+}
+
+void
+recompute_recent_cpu_all_threads_mlfqs (void)
+{
+  thread_foreach(thread_recompute_recent_cpu_mlfqs, NULL);
+}
+
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -505,7 +614,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
-
+  if(t == initial_thread)
+    {
+      t->nice = INIT_THREAD_NICE;
+      t->recent_cpu = fix_int(INIT_RECENT_CPU);
+    }
+  else
+    {
+      t->nice = thread_current ()->nice;
+      t->recent_cpu = thread_current ()->recent_cpu;
+    }
   list_init (&t->lock_list);
   t->blocking_lock = NULL;
   old_level = intr_disable ();
