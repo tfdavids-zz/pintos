@@ -145,15 +145,5 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-void thread_recompute_priority_mlfqs (struct thread *t, void *aux);
-void thread_recompute_recent_cpu_mlfqs (struct thread *t, void *aux);
-void recompute_load_avg_mlfqs (void);
-void recompute_priority_all_threads_mlfqs (void);
-void recompute_recent_cpu_all_threads_mlfqs (void);
-
-
-
-
-
 #endif /* threads/thread.h */
 

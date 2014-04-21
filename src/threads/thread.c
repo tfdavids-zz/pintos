@@ -81,6 +81,12 @@ void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void thread_calculate_priority (void);
 
+static void recompute_priority_mlfqs (struct thread *t, void *aux);
+static void recompute_recent_cpu_mlfqs (struct thread *t, void *aux);
+static void recompute_load_avg_mlfqs (void);
+static void recompute_priority_all_threads_mlfqs (void);
+static void recompute_recent_cpu_all_threads_mlfqs (void);
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -157,7 +163,7 @@ thread_tick (void)
       /* Recompute all thread priorities once every 4 ticks */
       if (timer_ticks() % 4 == 0)
         {
-          thread_foreach (thread_recompute_priority_mlfqs, NULL);
+          thread_foreach (recompute_priority_mlfqs, NULL);
         }
 
       /* Increment recent_cpu of running thread (unless idle) */
@@ -172,7 +178,7 @@ thread_tick (void)
       if (timer_ticks() % TIMER_FREQ == 0)
         {
           recompute_load_avg_mlfqs ();
-          thread_foreach (thread_recompute_recent_cpu_mlfqs, NULL);
+          thread_foreach (recompute_recent_cpu_mlfqs, NULL);
         }
 
     }
@@ -465,7 +471,7 @@ thread_get_recent_cpu (void)
 }
 
 void
-thread_recompute_priority_mlfqs (struct thread *t, void *aux)
+recompute_priority_mlfqs (struct thread *t, void *aux)
 {
   fixed_point_t nfour = fix_int(-4);
   
@@ -488,7 +494,7 @@ thread_recompute_priority_mlfqs (struct thread *t, void *aux)
 }
 
 void
-thread_recompute_recent_cpu_mlfqs (struct thread *t, void *aux)
+recompute_recent_cpu_mlfqs (struct thread *t, void *aux)
 {
   fixed_point_t one = fix_int(1);
   fixed_point_t two = fix_int(2);
@@ -534,13 +540,13 @@ recompute_load_avg_mlfqs (void)
 void
 recompute_priority_all_threads_mlfqs (void)
 {
-  thread_foreach(thread_recompute_priority_mlfqs, NULL);
+  thread_foreach(recompute_priority_mlfqs, NULL);
 }
 
 void
 recompute_recent_cpu_all_threads_mlfqs (void)
 {
-  thread_foreach(thread_recompute_recent_cpu_mlfqs, NULL);
+  thread_foreach(recompute_recent_cpu_mlfqs, NULL);
 }
 
 
