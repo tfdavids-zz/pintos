@@ -84,8 +84,6 @@ void thread_calculate_priority (void);
 static void recompute_priority_mlfqs (struct thread *t, void *aux);
 static void recompute_recent_cpu_mlfqs (struct thread *t, void *aux);
 static void recompute_load_avg_mlfqs (void);
-static void recompute_priority_all_threads_mlfqs (void);
-static void recompute_recent_cpu_all_threads_mlfqs (void);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -471,7 +469,7 @@ thread_get_recent_cpu (void)
 }
 
 void
-recompute_priority_mlfqs (struct thread *t, void *aux)
+recompute_priority_mlfqs (struct thread *t, void *aux UNUSED)
 {
   fixed_point_t nfour = fix_int(-4);
   
@@ -494,7 +492,7 @@ recompute_priority_mlfqs (struct thread *t, void *aux)
 }
 
 void
-recompute_recent_cpu_mlfqs (struct thread *t, void *aux)
+recompute_recent_cpu_mlfqs (struct thread *t, void *aux UNUSED)
 {
   fixed_point_t one = fix_int(1);
   fixed_point_t two = fix_int(2);
@@ -536,19 +534,6 @@ recompute_load_avg_mlfqs (void)
            fix_int(ready_threads))
          );
 }
-
-void
-recompute_priority_all_threads_mlfqs (void)
-{
-  thread_foreach(recompute_priority_mlfqs, NULL);
-}
-
-void
-recompute_recent_cpu_all_threads_mlfqs (void)
-{
-  thread_foreach(recompute_recent_cpu_mlfqs, NULL);
-}
-
 
 /* Idle thread.  Executes when no other thread is ready to run.
 

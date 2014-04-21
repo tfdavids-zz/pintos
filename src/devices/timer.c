@@ -30,12 +30,16 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+bool sleeplist_less_func (const struct list_elem *a,
+                          const struct list_elem *b,
+                          void *aux UNUSED);
+
 static struct list sleep_list; 
 
 bool
 sleeplist_less_func (const struct list_elem *a,
                      const struct list_elem *b,
-                     void *aux)
+                     void *aux UNUSED)
 {
   struct thread *t1 = list_entry(a, struct thread, sleepelem);
   struct thread *t2 = list_entry(b, struct thread, sleepelem);
