@@ -148,14 +148,12 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  int total_ticks = idle_ticks + user_ticks + kernel_ticks;
-
   /* Recompute priority/recent_cpu/load_avg if mlfqs */
   if(thread_mlfqs)
     {
 
       /* Recompute all thread priorities once every 4sec */  
-      if(total_ticks % 4 == 0){
+      if(timer_ticks() % 4 == 0){
 	thread_foreach(thread_recompute_priority_mlfqs, NULL);
       }
 
@@ -167,9 +165,8 @@ thread_tick (void)
 
       /* Recompute recent_cpu of all threads and 
 	 Recompute load_avg for the sys once per sec */
-      if(total_ticks % TIMER_FREQ == 0)
+      if(timer_ticks() % TIMER_FREQ == 0)
 	{
-
 	  thread_foreach(thread_recompute_recent_cpu_mlfqs, NULL);
 	  recompute_load_avg_mlfqs ();
 	}
@@ -434,8 +431,6 @@ thread_set_nice (int nice UNUSED)
 
   struct thread *current_thread = thread_current ();
   current_thread->nice = nice;
-  
-  /* Not yet implemented. */
 }
 
 /* Returns the current thread's nice value. */
@@ -468,11 +463,15 @@ void
 thread_recompute_priority_mlfqs (struct thread *t, void *aux)
 {
   fixed_point_t four = fix_int(4);
-  int old_priority = t->priority;
   
-  t->priority = PRI_MAX -
-    fix_trunc(fix_div(t->recent_cpu, four)) -
-    t->nice * 2;
+  t->priority = (PRI_MAX -
+		 fix_trunc(fix_div(t->recent_cpu, four)) -
+		 t->nice * 2)%64;
+  if(t->status == THREAD_READY)
+    {
+      list_remove(&t->elem);
+      ready_lists_insert(t);
+    }    
 }
 
 void
@@ -499,10 +498,16 @@ recompute_load_avg_mlfqs (void)
 
   int ready_threads = 0;
   int i;
-  for (i = 0; i < NUM_PRIO; i++)
+  for (i = 0; i < NUM_PRIO; i++){
     ready_threads += list_size (&ready_lists[i]);
+  }
+  // Do not count the idle thread
+  if (idle_thread->status == THREAD_READY)
+    ready_threads--;
+  
   if(thread_current () != idle_thread)
     ready_threads++;
+
   load_avg = fix_add(
 		     fix_mul(
 			     fix_div(fifty_nine, sixty),
