@@ -64,6 +64,9 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+/* Ignored if thread_mlfqs not set. */
+static fixed_point_t load_avg;
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -77,8 +80,6 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void thread_calculate_priority (void);
-
-static fixed_point_t load_avg;
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -154,30 +155,33 @@ thread_tick (void)
     {
 
       /* Recompute all thread priorities once every 4 ticks */
-      if(timer_ticks() % 4 == 0)
+      if (timer_ticks() % 4 == 0)
         {
-	      thread_foreach(thread_recompute_priority_mlfqs, NULL);
+          thread_foreach (thread_recompute_priority_mlfqs, NULL);
         }
 
-      /* Increment recent_cpu of running thread(unless idle) */
-      if(thread_current () != idle_thread)
-	    thread_current ()->recent_cpu = 
-	      fix_add(thread_current ()->recent_cpu,
-		          fix_int(1));
+      /* Increment recent_cpu of running thread (unless idle) */
+      if (thread_current () != idle_thread)
+        {
+          thread_current ()->recent_cpu = 
+            fix_add (thread_current ()->recent_cpu, fix_int(1));
+        }
 
       /* Recompute recent_cpu of all threads and 
-	 Recompute load_avg for the sys once per sec */
-      if(timer_ticks() % TIMER_FREQ == 0)
-	    {
-	      recompute_load_avg_mlfqs ();
-	      thread_foreach(thread_recompute_recent_cpu_mlfqs, NULL);
-	    }
+       * load_avg for the sys once per sec */
+      if (timer_ticks() % TIMER_FREQ == 0)
+        {
+          recompute_load_avg_mlfqs ();
+          thread_foreach (thread_recompute_recent_cpu_mlfqs, NULL);
+        }
 
     }
   
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
-    intr_yield_on_return ();
+    {
+      intr_yield_on_return ();
+    }
 }
 
 /* Prints thread statistics. */
@@ -282,7 +286,6 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
 
-  /* TODO: Implement ready_lists_insert -- inserts thread by effective priority */
   ready_lists_insert (t);
   t->status = THREAD_READY;
   intr_set_level (old_level);
@@ -458,7 +461,7 @@ thread_get_recent_cpu (void)
 
   fixed_point_t hundred = fix_int(100);
   return fix_trunc(fix_mul(hundred,
-			   thread_current ()->recent_cpu));
+                  thread_current ()->recent_cpu));
 }
 
 void
@@ -466,11 +469,16 @@ thread_recompute_priority_mlfqs (struct thread *t, void *aux)
 {
   fixed_point_t nfour = fix_int(-4);
   
-  t->eff_priority = PRI_MAX + fix_trunc(fix_div(t->recent_cpu, nfour)) - t->nice * 2;
+  t->eff_priority = PRI_MAX + fix_trunc(fix_div(t->recent_cpu, nfour)) -
+    t->nice * 2;
   if (t->eff_priority < 0)
-    t->eff_priority = 0;
-  if (t->eff_priority > PRI_MAX)
-    t->eff_priority = PRI_MAX;
+    {
+      t->eff_priority = 0;
+    }
+  else if (t->eff_priority > PRI_MAX)
+    {
+      t->eff_priority = PRI_MAX;
+    }
 
   if(t->status == THREAD_READY)
     {
@@ -485,13 +493,13 @@ thread_recompute_recent_cpu_mlfqs (struct thread *t, void *aux)
   fixed_point_t one = fix_int(1);
   fixed_point_t two = fix_int(2);
   t->recent_cpu = fix_add(
-			  fix_mul(
-				  fix_div(
-					  fix_mul(two, load_avg),
-					  fix_add(fix_mul(two, load_avg),
-						  one)), 
-				  t->recent_cpu),
-			  fix_int(t->nice));
+                    fix_mul(
+                      fix_div(
+                        fix_mul(two, load_avg),
+                        fix_add(fix_mul(two, load_avg),
+                          one)), 
+                      t->recent_cpu),
+                    fix_int(t->nice));
 }
 
 void
@@ -514,13 +522,13 @@ recompute_load_avg_mlfqs (void)
     ready_threads++;
 
   load_avg = fix_add(
-		     fix_mul(
-			     fix_div(fifty_nine, sixty),
-			     load_avg),
-		     fix_mul(
-			     fix_div(one, sixty),
-			     fix_int(ready_threads))
-		     );
+         fix_mul(
+           fix_div(fifty_nine, sixty),
+           load_avg),
+         fix_mul(
+           fix_div(one, sixty),
+           fix_int(ready_threads))
+         );
 }
 
 void
@@ -624,7 +632,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
-  if(t == initial_thread)
+  if (t == initial_thread)
     {
       t->nice = INIT_THREAD_NICE;
       t->recent_cpu = fix_int(INIT_RECENT_CPU);
@@ -654,20 +662,23 @@ alloc_frame (struct thread *t, size_t size)
   return t->stack;
 }
 
-/* Chooses and returns the next thread to be scheduled.  Should
-   return a thread from the run queue, unless the run queue is
-   empty.  (If the running thread can continue running, then it
-   will be in the run queue.)  If the run queue is empty, return
+/* Chooses and returns the next, highest-priority thread to be scheduled.
+   Should return a thread from one of the run queues, unless every run queue
+   is empty.  (If the running thread can continue running, then it
+   will be in a run queue.)  If all run queues are empty, return
    idle_thread. */
 static struct thread *
 next_thread_to_run (void) 
 {
-  /* TODO */
   int i;
-  for (i = NUM_PRIO - 1; i >= 0; i--) {
-    if (!list_empty(&ready_lists[i]))
-      return list_entry(list_pop_front(&ready_lists[i]), struct thread, elem);
-  }
+  for (i = NUM_PRIO - 1; i >= 0; i--)
+    {
+      if (!list_empty(&ready_lists[i]))
+        {
+          return list_entry (list_pop_front (&ready_lists[i]),
+            struct thread, elem);
+        }
+    }
   return idle_thread;
 }
 

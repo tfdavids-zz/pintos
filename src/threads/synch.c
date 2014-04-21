@@ -110,7 +110,7 @@ sema_try_down (struct semaphore *sema)
 
 static bool
 sema_prio_less (const struct list_elem *a, const struct list_elem *b,
-		void *aux)
+    void *aux)
 {
     struct thread *ta = list_entry (a, struct thread, elem);
     struct thread *tb = list_entry (b, struct thread, elem);
@@ -120,13 +120,13 @@ sema_prio_less (const struct list_elem *a, const struct list_elem *b,
 
 static bool
 cond_prio_less (const struct list_elem *a, const struct list_elem *b,
-		void *aux)
+    void *aux)
 {
     struct semaphore_elem *sa = list_entry (a, struct semaphore_elem, elem);
     struct semaphore_elem *sb = list_entry (b, struct semaphore_elem, elem);
     return sema_prio_less (list_front (&sa->semaphore.waiters),
-			   list_front (&sb->semaphore.waiters),
-			   aux);
+         list_front (&sb->semaphore.waiters),
+         aux);
 }
 
 /* Up or "V" operation on a semaphore.  Increments SEMA's value
@@ -242,13 +242,13 @@ lock_acquire (struct lock *lock)
       current_thread->blocking_lock = lock;
 
       while (curr_lock &&
-	     curr_lock->holder &&
-	     curr_lock->holder->eff_priority < ep)
-	{
-	  curr_lock->priority = ep;
-	  curr_lock->holder->eff_priority = ep;
-	  curr_lock = curr_lock->holder->blocking_lock;
-	}
+       curr_lock->holder &&
+       curr_lock->holder->eff_priority < ep)
+  {
+    curr_lock->priority = ep;
+    curr_lock->holder->eff_priority = ep;
+    curr_lock = curr_lock->holder->blocking_lock;
+  }
     }
   sema_down (&lock->semaphore);
 
@@ -401,7 +401,7 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
    make sense to try to signal a condition variable within an
    interrupt handler. */
 void
-cond_broadcast (struct condition *cond, struct lock *lock) 
+cond_broadcast (struct condition *cond, struct lock *lock)
 {
   ASSERT (cond != NULL);
   ASSERT (lock != NULL);

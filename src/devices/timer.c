@@ -110,7 +110,8 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
   struct thread *curr_t = thread_current ();
   curr_t->wakeup_time = start + ticks;
-  list_insert_ordered(&sleep_list, &curr_t->sleepelem, &sleeplist_less_func, NULL);
+  list_insert_ordered(&sleep_list, &curr_t->sleepelem, &sleeplist_less_func,
+                      NULL);
   thread_block();  
   intr_set_level (old_level);
 }
@@ -184,7 +185,7 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
@@ -195,12 +196,15 @@ timer_interrupt (struct intr_frame *args UNUSED)
   for(e = list_begin(&sleep_list); e != list_end(&sleep_list);)
     {
       struct thread * t = list_entry(e, struct thread, sleepelem);
-      if(t->wakeup_time <= timer_ticks()){
-		e = list_remove(e);
-		thread_unblock(t);
-      } else {
-        break;
-      }
+      if (t->wakeup_time <= timer_ticks())
+        {
+          e = list_remove(e);
+          thread_unblock(t);
+        }
+      else
+        {
+          break;
+        }
     }
 
   thread_tick ();
