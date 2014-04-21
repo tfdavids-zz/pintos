@@ -322,10 +322,11 @@ lock_release (struct lock *lock)
     thread_calculate_priority ();
 
   sema_up (&lock->semaphore);
-  thread_yield ();
 
   // TODO: should we enable these sooner (before sema_up)?
   intr_set_level(old_level);
+  thread_yield ();
+
 }
 
 /* Returns true if the current thread holds LOCK, false
