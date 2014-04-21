@@ -108,6 +108,9 @@ sema_try_down (struct semaphore *sema)
   return success;
 }
 
+
+/* Comparison function to impose an ordering on the threads waiting
+   on a semaphore. */
 static bool
 sema_prio_less (const struct list_elem *a, const struct list_elem *b,
     void *aux)
@@ -118,6 +121,15 @@ sema_prio_less (const struct list_elem *a, const struct list_elem *b,
     return ta->eff_priority < tb->eff_priority;
 }
 
+/* Comparison function to impose an ordering on the semaphores linked 
+   to a condition variable. A semaphore is considered less than another
+   one if the first thread in its list of waiters is less than the first
+   thread in the other's list of waiters, as determined by sema_prio_less.
+
+   Allows us to ensure that condition variables wake up the semaphore whose
+   waiting thread is of the highest-priority. Assumes that each semaphore
+   waiting on a condition variable has a single thread waiting on it. */
+   
 static bool
 cond_prio_less (const struct list_elem *a, const struct list_elem *b,
     void *aux)
@@ -130,7 +142,8 @@ cond_prio_less (const struct list_elem *a, const struct list_elem *b,
 }
 
 /* Up or "V" operation on a semaphore.  Increments SEMA's value
-   and wakes up one thread of those waiting for SEMA, if any.
+   and wakes up the highest-priority thread of those waiting for SEMA,
+   if any.
 
    This function may be called from an interrupt handler. */
 void
@@ -234,7 +247,10 @@ lock_acquire (struct lock *lock)
   old_level = intr_disable();
 
   struct thread *current_thread = thread_current();
-  if(!thread_mlfqs)
+
+   /* Provided that we are not running in mlfqs mode,
+      donate priority if necessary. */
+  if (!thread_mlfqs)
     {
       int ep = current_thread->eff_priority;
 
@@ -372,7 +388,7 @@ cond_wait (struct condition *cond, struct lock *lock)
 }
 
 /* If any threads are waiting on COND (protected by LOCK), then
-   this function signals one of them to wake up from its wait.
+   this function signals the highest-priority thread to wake up from its wait.
    LOCK must be held before calling this function.
 
    An interrupt handler cannot acquire a lock, so it does not
