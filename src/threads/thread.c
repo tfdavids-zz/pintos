@@ -76,6 +76,7 @@ static void ready_lists_insert(struct thread *);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+void thread_calculate_priority (void);
 
 static fixed_point_t load_avg;
 
@@ -152,24 +153,25 @@ thread_tick (void)
   if(thread_mlfqs)
     {
 
-      /* Recompute all thread priorities once every 4sec */  
-      if(timer_ticks() % 4 == 0){
-	thread_foreach(thread_recompute_priority_mlfqs, NULL);
-      }
+      /* Recompute all thread priorities once every 4 ticks */
+      if(timer_ticks() % 4 == 0)
+        {
+	      thread_foreach(thread_recompute_priority_mlfqs, NULL);
+        }
 
       /* Increment recent_cpu of running thread(unless idle) */
       if(thread_current () != idle_thread)
-	thread_current ()->recent_cpu = 
-	  fix_add(thread_current ()->recent_cpu,
-		  fix_int(1));
+	    thread_current ()->recent_cpu = 
+	      fix_add(thread_current ()->recent_cpu,
+		          fix_int(1));
 
       /* Recompute recent_cpu of all threads and 
 	 Recompute load_avg for the sys once per sec */
       if(timer_ticks() % TIMER_FREQ == 0)
-	{
-	  thread_foreach(thread_recompute_recent_cpu_mlfqs, NULL);
-	  recompute_load_avg_mlfqs ();
-	}
+	    {
+	      recompute_load_avg_mlfqs ();
+	      thread_foreach(thread_recompute_recent_cpu_mlfqs, NULL);
+	    }
 
     }
   
@@ -462,11 +464,14 @@ thread_get_recent_cpu (void)
 void
 thread_recompute_priority_mlfqs (struct thread *t, void *aux)
 {
-  fixed_point_t four = fix_int(4);
+  fixed_point_t nfour = fix_int(-4);
   
-  t->priority = (PRI_MAX -
-		 fix_trunc(fix_div(t->recent_cpu, four)) -
-		 t->nice * 2)%64;
+  t->eff_priority = PRI_MAX + fix_trunc(fix_div(t->recent_cpu, nfour)) - t->nice * 2;
+  if (t->eff_priority < 0)
+    t->eff_priority = 0;
+  if (t->eff_priority > PRI_MAX)
+    t->eff_priority = PRI_MAX;
+
   if(t->status == THREAD_READY)
     {
       list_remove(&t->elem);
