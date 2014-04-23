@@ -113,7 +113,7 @@ sema_try_down (struct semaphore *sema)
    on a semaphore. */
 static bool
 sema_prio_less (const struct list_elem *a, const struct list_elem *b,
-    void *aux)
+    void *aux UNUSED)
 {
     struct thread *ta = list_entry (a, struct thread, elem);
     struct thread *tb = list_entry (b, struct thread, elem);

@@ -6,11 +6,9 @@
 				   
 ---- GROUP ----
 
->> Fill in the names and email addresses of your group members.
-
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Thomas Davids <tdavids@stanford.edu>
+Akshay Agrawal <akshayka@stanford.edu>
+Robert Gasparyan <robertga@stanford.edu>
 
 ---- PRELIMINARIES ----
 
@@ -30,26 +28,58 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+/* Ordered list to keep track of sleeping threads so we know who we might have
+ * to wake up.
+ */
+static struct list sleep_list;
+
+Within struct thread:
+
+int64_t wakeup_time; // Time that this thread is supposed to wake up (assuming
+                     // it's asleep).
+struct list_elem sleepelem; // List element for inserting this thread into
+                            // sleep_list.
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
 
+When timer_sleep() is called, the wakeup time of the current thread is updated
+to the correct value and the thread is inserted into sleep_list at the correct
+location (so we maintain an ordering of the list where the first element is
+the first to be woken).
+
+// TODO: timer interrupt handler?
+
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
+
+// TODO
 
 ---- SYNCHRONIZATION ----
 
 >> A4: How are race conditions avoided when multiple threads call
 >> timer_sleep() simultaneously?
 
+Timer interrupts are disabled when timer_sleep() is called, so only one thread
+can be inserted to the sleep_list at once.
+
+// TODO: do interrupts ever get re-enabled? Should we switch lines 119 and 120?
+
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
+
+Since interrupts are disabled, we can't have a timer interrupt during this
+call; the interruptor will have to wait until the thread has been put to sleep
+before acting.
 
 ---- RATIONALE ----
 
 >> A6: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+// TODO
 
 			 PRIORITY SCHEDULING
 			 ===================
@@ -59,6 +89,22 @@ FirstName LastName <email@domain.example>
 >> B1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+
+Within struct lock:
+
+struct list_elem elem;      /* List element for locks held by thread. */
+int priority;               /* Priority of highest thread that wants the
+                             * lock. */
+
+Within struct thread:
+
+int eff_priority;                   /* Effective priority of this thread 
+                                     * (including donation). */
+struct list lock_list;              /* List of all locks held by this thread. */
+struct lock *blocking_lock;         /* The lock this thread is blocked on */
+
+static struct list ready_lists[NUM_PRIO]; /* Ready lists of threads, sorted
+                                           * by effective priority. */
 
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
@@ -129,13 +175,6 @@ ticks   A   B   C   A   B   C   to run
 >> disadvantages in your design choices.  If you were to have extra
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
-
->> C6: The assignment explains arithmetic for fixed-point math in
->> detail, but it leaves it open to you to implement it.  Why did you
->> decide to implement it the way you did?  If you created an
->> abstraction layer for fixed-point math, that is, an abstract data
->> type and/or a set of functions or macros to manipulate fixed-point
->> numbers, why did you do so?  If not, why not?
 
 			   SURVEY QUESTIONS
 			   ================

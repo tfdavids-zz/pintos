@@ -7,6 +7,7 @@ elif [ "$1" != "" ]; then
     make clean
     make tests/threads/$1.result VERBOSE=1
 else
+    make clean
     make check
 fi
 cd ../../..
