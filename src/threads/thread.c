@@ -388,30 +388,23 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  // Ignore if MLFQS
+  /* Ignore if MLFQS. */
   if(thread_mlfqs)
     return;
 
   struct thread *curr = thread_current ();
-  int old_eff_priority = curr->eff_priority;
   curr->priority = new_priority;
-  /* TODO: Verify that we should, in fact, always yield
-   * if our priority was lowered.
-   */
-  if (new_priority > curr->eff_priority)
-    {
-      curr->eff_priority = new_priority;
-    }
-  if (new_priority < old_eff_priority)
-    {
-      thread_calculate_priority ();
-      thread_yield ();
-    }
+
+  thread_calculate_priority ();
+  thread_yield ();
 }
 
 void
 thread_calculate_priority(void)
 {
+  enum intr_level old_level;
+  old_level = intr_disable ();
+
   struct thread *curr_thread = thread_current ();
   curr_thread->eff_priority = curr_thread->priority;
   struct list_elem *e;
@@ -424,6 +417,8 @@ thread_calculate_priority(void)
           curr_thread->eff_priority = l->priority;
         }
     }
+
+  intr_set_level (old_level);
 }
 
 /* Returns the current thread's priority. */

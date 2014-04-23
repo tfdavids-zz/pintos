@@ -183,7 +183,13 @@ to the max of those, and then yields.
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
 
-
+thread_set_priority() sets the priority of the current thread, which updates
+its effective priority as well. However, if another thread steps in at that
+exact moment to donate priority to the current thread, one of those updates to
+effective priority could be overwritten. This is avoided by disabling
+interrupts in thread_calculate_priority(). This can't be avoided with a lock,
+since a timer interrupt (e.g. a higher-priority thread waking up) could
+pre-empt this thread and mess with its priority.
 
 ---- RATIONALE ----
 
