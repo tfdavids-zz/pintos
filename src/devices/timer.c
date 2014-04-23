@@ -112,7 +112,7 @@ timer_sleep (int64_t ticks)
   curr_t->wakeup_time = start + ticks;
   list_insert_ordered(&sleep_list, &curr_t->sleepelem, &sleeplist_less_func,
                       NULL);
-  thread_block();  
+  thread_block ();  
   intr_set_level (old_level);
 }
 
