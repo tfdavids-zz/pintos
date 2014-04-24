@@ -176,7 +176,10 @@ thread_tick (void)
       /* Recompute all  priorities once every 4 ticks */
       if (curr_timer_ticks % 4 == 0)
         {
-          thread_foreach (recompute_priority_mlfqs, NULL);
+	  if (curr_timer_ticks % TIMER_FREQ == 0)
+	    thread_foreach (recompute_priority_mlfqs, NULL);
+	  else
+	    recompute_priority_mlfqs (t, NULL);
         }
     }
   
