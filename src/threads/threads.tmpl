@@ -201,9 +201,10 @@ each lock. One of the other designs we considered was letting each thread
 maintain a sorted array of the threads waiting on it; effective priority would
 then be the priority of the first thread in this array. This would have
 increased efficiency in calculating priority after releasing a lock; however,
-it would have meant that the size of a thread could grow without bound. Our
-implementation lets us bound the size of a thread, which keeps us safely under
-the 4KB limit.
+it would have meant that the size of a thread could grow without bound (or we
+would have needed to dynamically allocate memory, which has its own issues).
+Our implementation lets us bound the size of a thread, which keeps us safely
+under the 4KB limit.
 
 			  ADVANCED SCHEDULER
 			  ==================
