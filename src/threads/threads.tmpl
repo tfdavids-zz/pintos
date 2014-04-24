@@ -175,7 +175,7 @@ recalculate its priority, since its effective priority may decrease. Since
 another thread could be donating priority to the releasing thread, we can't
 simply reset effective priority to priority; we need to look at all the locks
 we hold and see what their priority is. The releasing lock sets its priority
-to the max of those, and then yields.
+to the max of those, and then yields if it no longer has the highest priority.
 
 ---- SYNCHRONIZATION ----
 
@@ -214,6 +214,21 @@ the 4KB limit.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+Within struct threads:
+
+int nice;
+
+fixed_point_t recent_cpu;
+
+"int nice" stores the niceness value the thread
+"fixed_point_t recent_cpu" stores the recent cpu usage of the thread
+
+Global variable(thread.c):
+
+static fixed_point_t load_avg;
+
+"static fixed_point_t load_avg" stores the load average of the system
+
 ---- ALGORITHMS ----
 
 >> C2: Suppose threads A, B, and C have nice values 0, 1, and 2.  Each
@@ -221,26 +236,34 @@ the 4KB limit.
 >> scheduling decision and the priority and recent_cpu values for each
 >> thread after each given number of timer ticks:
 
+ 
 timer  recent_cpu    priority   thread
 ticks   A   B   C   A   B   C   to run
 -----  --  --  --  --  --  --   ------
- 0
- 4
- 8
-12
-16
-20
-24
-28
-32
-36
+ 0     0   0   0   63  61  59	A
+ 4     4   0   0   62  61  59	A      
+ 8     8   0   0   61  61  59	B
+12     8   4   0   61  60  59	A
+16     12  4   0   60  60  59	B
+20     12  8   0   60  59  59	A	   
+24     16  8   0   59  59  59	C
+28     16  8   4   59  59  58	B
+32     16  12  4   59  58  58	A
+36     20  12  4   58  58  58	C
+
+
 
 >> C3: Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
+One ambiguity we noticed when filling out the table was about how we 
+treat a running thread that was just  which When filling out the table The only possible ambiguity seemed to be with choosing 
+
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
+
+
 
 ---- RATIONALE ----
 

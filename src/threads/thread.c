@@ -64,7 +64,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-/* Ignored if thread_mlfqs not set. */
+/* Load avg of system, ignored if thread_mlfqs not set. */
 static fixed_point_t load_avg;
 
 static void kernel_thread (thread_func *, void *aux);
@@ -157,20 +157,6 @@ thread_tick (void)
   /* Recompute priority/recent_cpu/load_avg if mlfqs */
   if(thread_mlfqs)
     {
-
-      /* Recompute all thread priorities once every 4 ticks */
-      if (timer_ticks() % 4 == 0)
-        {
-          thread_foreach (recompute_priority_mlfqs, NULL);
-        }
-
-      /* Increment recent_cpu of running thread (unless idle) */
-      if (thread_current () != idle_thread)
-        {
-          thread_current ()->recent_cpu = 
-            fix_add (thread_current ()->recent_cpu, fix_int(1));
-        }
-
       /* Recompute recent_cpu of all threads and 
        * load_avg for the sys once per sec */
       if (timer_ticks() % TIMER_FREQ == 0)
@@ -179,6 +165,17 @@ thread_tick (void)
           thread_foreach (recompute_recent_cpu_mlfqs, NULL);
         }
 
+      /* Increment recent_cpu of running thread (unless idle) */
+      if (t != idle_thread)
+        {
+          t->recent_cpu = fix_add (t->recent_cpu, fix_int(1));
+        }
+
+      /* Recompute all thread priorities once every 4 ticks */
+      if (timer_ticks() % 4 == 0)
+        {
+          thread_foreach (recompute_priority_mlfqs, NULL);
+        }
     }
   
   /* Enforce preemption. */
@@ -367,6 +364,22 @@ thread_yield (void)
   intr_set_level (old_level);
 }
 
+/* Yields the CPU if the current thread does not hold the highest
+   eff_priority*/
+void
+thread_yield_if_not_highest (void)
+{
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  struct thread *cur = thread_current ();
+  int i;
+  for (i = cur->eff_priority + 1; i < NUM_PRIO; i++)
+    if(!list_empty (&ready_lists[i])) {
+      thread_yield ();
+      return;
+    }
+}
+
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
 void
@@ -388,22 +401,24 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  /* Ignore if MLFQS. */
-  if(thread_mlfqs)
-    return;
+  enum intr_level old_level;
+  old_level = intr_disable ();
 
-  struct thread *curr = thread_current ();
-  curr->priority = new_priority;
+  if(!thread_mlfqs)
+    {
+      struct thread *curr = thread_current ();
+      curr->priority = new_priority;
 
-  thread_calculate_priority ();
-  thread_yield ();
+      thread_calculate_priority ();
+      thread_yield_if_not_highest ();
+    }
+  intr_set_level (old_level);
 }
 
 void
 thread_calculate_priority(void)
 {
-  enum intr_level old_level;
-  old_level = intr_disable ();
+  ASSERT  (intr_get_level () == INTR_OFF);
 
   struct thread *curr_thread = thread_current ();
   curr_thread->eff_priority = curr_thread->priority;
@@ -418,7 +433,6 @@ thread_calculate_priority(void)
         }
     }
 
-  intr_set_level (old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -432,9 +446,17 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-
   struct thread *current_thread = thread_current ();
+
+  enum intr_level old_level = intr_disable ();
+
   current_thread->nice = nice;
+  int old_eff_priority = current_thread->eff_priority;
+  recompute_priority_mlfqs (current_thread, NULL);
+
+  thread_yield_if_not_highest ();
+
+  intr_set_level (old_level);
 }
 
 /* Returns the current thread's nice value. */
@@ -449,36 +471,48 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
+  enum intr_level old_level;
+  old_level = intr_disable ();
+
   fixed_point_t hundred = fix_int(100);
-  return fix_trunc(fix_mul(hundred, load_avg));
+  int curr_load_avg = fix_trunc(fix_mul(hundred, load_avg));
+  intr_set_level (old_level);
+  return curr_load_avg;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
+  enum intr_level old_level;
+  old_level = intr_disable ();
 
   fixed_point_t hundred = fix_int(100);
-  return fix_trunc(fix_mul(hundred,
-                  thread_current ()->recent_cpu));
+  int curr_recent_cpu = fix_trunc(fix_mul(hundred,
+					  thread_current ()->recent_cpu));
+  intr_set_level (old_level);
+  return curr_recent_cpu;
 }
 
 void
 recompute_priority_mlfqs (struct thread *t, void *aux UNUSED)
 {
+  ASSERT  (intr_get_level () == INTR_OFF);
+
   fixed_point_t nfour = fix_int(-4);
   
   t->eff_priority = PRI_MAX + fix_trunc(fix_div(t->recent_cpu, nfour)) -
     t->nice * 2;
-  if (t->eff_priority < 0)
+  if (t->eff_priority < PRI_MIN)
     {
-      t->eff_priority = 0;
+      t->eff_priority = PRI_MIN;
     }
   else if (t->eff_priority > PRI_MAX)
     {
       t->eff_priority = PRI_MAX;
     }
 
+  // If in ready_lists, move to the appropriate one
   if(t->status == THREAD_READY)
     {
       list_remove(&t->elem);
@@ -489,6 +523,8 @@ recompute_priority_mlfqs (struct thread *t, void *aux UNUSED)
 void
 recompute_recent_cpu_mlfqs (struct thread *t, void *aux UNUSED)
 {
+  ASSERT  (intr_get_level () == INTR_OFF);
+
   fixed_point_t one = fix_int(1);
   fixed_point_t two = fix_int(2);
   t->recent_cpu = fix_add(
@@ -504,6 +540,8 @@ recompute_recent_cpu_mlfqs (struct thread *t, void *aux UNUSED)
 void
 recompute_load_avg_mlfqs (void)
 {
+  ASSERT  (intr_get_level () == INTR_OFF);
+
   fixed_point_t one = fix_int(1);
   fixed_point_t fifty_nine = fix_int(59);
   fixed_point_t sixty = fix_int(60);
