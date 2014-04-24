@@ -157,9 +157,11 @@ thread_tick (void)
   /* Recompute priority/recent_cpu/load_avg if mlfqs */
   if(thread_mlfqs)
     {
+      int curr_timer_ticks = timer_ticks ();
+
       /* Recompute recent_cpu of all threads and 
        * load_avg for the sys once per sec */
-      if (timer_ticks() % TIMER_FREQ == 0)
+      if (curr_timer_ticks % TIMER_FREQ == 0)
         {
           recompute_load_avg_mlfqs ();
           thread_foreach (recompute_recent_cpu_mlfqs, NULL);
@@ -171,8 +173,8 @@ thread_tick (void)
           t->recent_cpu = fix_add (t->recent_cpu, fix_int(1));
         }
 
-      /* Recompute all thread priorities once every 4 ticks */
-      if (timer_ticks() % 4 == 0)
+      /* Recompute all  priorities once every 4 ticks */
+      if (curr_timer_ticks % 4 == 0)
         {
           thread_foreach (recompute_priority_mlfqs, NULL);
         }
@@ -227,6 +229,7 @@ thread_create (const char *name, int priority,
 
   /* Initialize thread. */
   init_thread (t, name, priority);
+  
   tid = t->tid = allocate_tid ();
 
   /* Stack frame for kernel_thread(). */
@@ -247,8 +250,10 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  /* Yield current thread. */
-  thread_yield();
+  /* Yield current thread if not highest. */
+  enum intr_level old_level = intr_disable ();
+  thread_yield_if_not_highest ();
+  intr_set_level (old_level);
 
   return tid;
 }
@@ -401,17 +406,17 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  if (thread_mlfqs)
+    return;
+
+  struct thread *curr = thread_current ();
+  curr->priority = new_priority;
+
   enum intr_level old_level;
   old_level = intr_disable ();
 
-  if(!thread_mlfqs)
-    {
-      struct thread *curr = thread_current ();
-      curr->priority = new_priority;
-
-      thread_calculate_priority ();
-      thread_yield_if_not_highest ();
-    }
+  thread_calculate_priority ();
+  thread_yield_if_not_highest ();
   intr_set_level (old_level);
 }
 
@@ -432,7 +437,6 @@ thread_calculate_priority(void)
           curr_thread->eff_priority = l->priority;
         }
     }
-
 }
 
 /* Returns the current thread's priority. */
@@ -447,13 +451,10 @@ void
 thread_set_nice (int nice UNUSED) 
 {
   struct thread *current_thread = thread_current ();
-
   enum intr_level old_level = intr_disable ();
 
   current_thread->nice = nice;
-  int old_eff_priority = current_thread->eff_priority;
   recompute_priority_mlfqs (current_thread, NULL);
-
   thread_yield_if_not_highest ();
 
   intr_set_level (old_level);
@@ -511,8 +512,7 @@ recompute_priority_mlfqs (struct thread *t, void *aux UNUSED)
     {
       t->eff_priority = PRI_MAX;
     }
-
-  // If in ready_lists, move to the appropriate one
+  /* If in ready_lists, move to the appropriate one */
   if(t->status == THREAD_READY)
     {
       list_remove(&t->elem);
@@ -551,7 +551,7 @@ recompute_load_avg_mlfqs (void)
   for (i = 0; i < NUM_PRIO; i++){
     ready_threads += list_size (&ready_lists[i]);
   }
-  // Do not count the idle thread
+  /* Do not count the idle thread */
   if (idle_thread->status == THREAD_READY)
     ready_threads--;
   
@@ -656,19 +656,25 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
-  if (t == initial_thread)
+  if (thread_mlfqs)
     {
-      t->nice = INIT_THREAD_NICE;
-      t->recent_cpu = fix_int(INIT_RECENT_CPU);
-    }
-  else
-    {
-      t->nice = thread_current ()->nice;
-      t->recent_cpu = thread_current ()->recent_cpu;
+      if (t == initial_thread)
+	{
+	  t->nice = INIT_THREAD_NICE;
+	  t->recent_cpu = fix_int(INIT_RECENT_CPU);
+	}
+      else
+	{
+	  t->nice = thread_current ()->nice;
+	  t->recent_cpu = thread_current ()->recent_cpu;
+	}
     }
   list_init (&t->lock_list);
   t->blocking_lock = NULL;
   old_level = intr_disable ();
+  if (thread_mlfqs){
+    recompute_priority_mlfqs (t, NULL);
+  }
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
 }
