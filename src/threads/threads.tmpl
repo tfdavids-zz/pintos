@@ -98,10 +98,12 @@ int priority;               /* Priority of highest thread that wants the
 
 Within struct thread:
 
-int eff_priority;                   /* Effective priority of this thread 
+int eff_priority;                   /* Effective priority of this thread
                                      * (including donation). */
 struct list lock_list;              /* List of all locks held by this thread. */
 struct lock *blocking_lock;         /* The lock this thread is blocked on */
+
+In thread.c:
 
 static struct list ready_lists[NUM_PRIO]; /* Ready lists of threads, sorted
                                            * by effective priority. */
@@ -110,16 +112,70 @@ static struct list ready_lists[NUM_PRIO]; /* Ready lists of threads, sorted
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
 
+Essentially, each thread maintains a value for priority, which represents its
+assigned priority, and effective priority, which represents the priority that
+it acts with, including donation. In addition to effective priority, each
+thread keeps track of which locks it's holding, and which one (if any) that
+it's blocked on. This lets a thread that tries to acquire a lock donate its
+priority "up the chain" very efficiently.
+
+ ---------------------    -------------------    ---------------------
+| Thread A            |  | Thread B          |  | Thread C            |
+| lock_list: none     |  | lock_list: L1     |  | lock_list: L2       |
+| prio: 8             |  | prio: 5           |  | prio: 3             |
+| eff_prio: 8         |  | eff_prio: 5       |->| eff_prio: 5         |
+| blocking_lock: none |  | blocking_lock: L2 |  | blocking_lock: none |
+ ---------------------    -------------------    ---------------------
+
+In the current situation, we have three threads and two locks. Thread B is
+waiting on lock L2 held by thread C, and thus has donated its priority 5 to
+thread C. If thread A tries to acquire L1 (a lock held by thread B), lock L1
+will increase its priority to 8. Since L1 knows that it's being held by thread
+B, it will then give this priority of 8 to thread B as effective priority. When
+thread B's priority increases, it passes this on to the holder of the lock it's
+waiting on, and this process will continue until we reach a thread which is
+waiting on no one. Our result will be as follows:
+
+ -------------------    -------------------    ---------------------
+| Thread A          |  | Thread B          |  | Thread C            |
+| lock_list: none   |  | lock_list: L1     |  | lock_list: L2       |
+| prio: 8           |  | prio: 5           |  | prio: 3             |
+| eff_prio: 8       |->| eff_prio: 8       |->| eff_prio: 8         |
+| blocking_lock: L1 |  | blocking_lock: L2 |  | blocking_lock: none |
+ -------------------    -------------------    ---------------------
+
+All the threads now have effective priority 8, since A has donated its priority
+to each of them.
+
 ---- ALGORITHMS ----
 
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
 
+When it comes time to wake up a thread waiting on a lock, semaphore, or
+condition variable, we search the list of waiters (with the function list_max)
+to find the one with the highest effective priority.
+
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
 
+Suppose we have the situation from B2, where thread A tries to acquire a lock
+held by thread B. When thread A calls lock_acquire() and sees that its lock is
+already held, we enter a loop where priority is donated (as effective
+priority). In this case, thread A would give its priority of 8 to the lock L1
+held by thread B and to thread B. If thread B is blocked on lock L2 held by
+thread C, we would repeat the process; thread B would give this priority of 8
+to lock L2 and to thread C.
+
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
+
+When lock_release() is called, the thread releasing the lock needs to
+recalculate its priority, since its effective priority may decrease. Since
+another thread could be donating priority to the releasing thread, we can't
+simply reset effective priority to priority; we need to look at all the locks
+we hold and see what their priority is. The releasing lock sets its priority
+to the max of those, and then yields if it no longer has the highest priority.
 
 ---- SYNCHRONIZATION ----
 
@@ -127,10 +183,27 @@ static struct list ready_lists[NUM_PRIO]; /* Ready lists of threads, sorted
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
 
+thread_set_priority() sets the priority of the current thread, which updates
+its effective priority as well. However, if another thread steps in at that
+exact moment to donate priority to the current thread, one of those updates to
+effective priority could be overwritten. This is avoided by disabling
+interrupts in thread_calculate_priority(). This can't be avoided with a lock,
+since a timer interrupt (e.g. a higher-priority thread waking up) could
+pre-empt this thread and mess with its priority.
+
 ---- RATIONALE ----
 
 >> B7: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+We chose this design because it only adds a constant size to each thread and
+each lock. One of the other designs we considered was letting each thread
+maintain a sorted array of the threads waiting on it; effective priority would
+then be the priority of the first thread in this array. This would have
+increased efficiency in calculating priority after releasing a lock; however,
+it would have meant that the size of a thread could grow without bound. Our
+implementation lets us bound the size of a thread, which keeps us safely under
+the 4KB limit.
 
 			  ADVANCED SCHEDULER
 			  ==================
@@ -141,6 +214,21 @@ static struct list ready_lists[NUM_PRIO]; /* Ready lists of threads, sorted
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+Within struct threads:
+
+int nice;
+
+fixed_point_t recent_cpu;
+
+"int nice" stores the niceness value the thread
+"fixed_point_t recent_cpu" stores the recent cpu usage of the thread
+
+Global variable(thread.c):
+
+static fixed_point_t load_avg;
+
+"static fixed_point_t load_avg" stores the load average of the system
+
 ---- ALGORITHMS ----
 
 >> C2: Suppose threads A, B, and C have nice values 0, 1, and 2.  Each
@@ -148,26 +236,34 @@ static struct list ready_lists[NUM_PRIO]; /* Ready lists of threads, sorted
 >> scheduling decision and the priority and recent_cpu values for each
 >> thread after each given number of timer ticks:
 
+ 
 timer  recent_cpu    priority   thread
 ticks   A   B   C   A   B   C   to run
 -----  --  --  --  --  --  --   ------
- 0
- 4
- 8
-12
-16
-20
-24
-28
-32
-36
+ 0     0   0   0   63  61  59	A
+ 4     4   0   0   62  61  59	A      
+ 8     8   0   0   61  61  59	B
+12     8   4   0   61  60  59	A
+16     12  4   0   60  60  59	B
+20     12  8   0   60  59  59	A	   
+24     16  8   0   59  59  59	C
+28     16  8   4   59  59  58	B
+32     16  12  4   59  58  58	A
+36     20  12  4   58  58  58	C
+
+
 
 >> C3: Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
+One ambiguity we noticed when filling out the table was about how we 
+treat a running thread that was just  which When filling out the table The only possible ambiguity seemed to be with choosing 
+
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
+
+
 
 ---- RATIONALE ----
 

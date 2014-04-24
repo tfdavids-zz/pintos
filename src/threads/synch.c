@@ -162,8 +162,8 @@ sema_up (struct semaphore *sema)
     }
 
   sema->value++;
+  thread_yield_if_not_highest ();
   intr_set_level (old_level);
-  thread_yield ();
 }
 
 static void sema_test_helper (void *sema_);
@@ -314,19 +314,17 @@ lock_release (struct lock *lock)
   lock->holder = NULL;
   lock->priority = -1;
 
-  // Remove lock from list of locks we hold
+  /* Remove lock from list of locks we hold */
   list_remove (&lock->elem);
 
-  // re-calculate my priority from the locks I still hold
+  /* re-calculate my priority from the locks I still hold */
   if(!thread_mlfqs)
     thread_calculate_priority ();
 
   sema_up (&lock->semaphore);
 
-  // TODO: should we enable these sooner (before sema_up)?
+  thread_yield_if_not_highest ();
   intr_set_level(old_level);
-  thread_yield ();
-
 }
 
 /* Returns true if the current thread holds LOCK, false
