@@ -392,7 +392,8 @@ thread_has_highest_priority (struct thread *t)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  for (int i = t->eff_priority + 1; i < NUM_PRIO; i++)
+  int i;
+  for (i = t->eff_priority + 1; i < NUM_PRIO; i++)
     {
       if (!list_empty (&ready_lists[i]))
         return false;
@@ -563,7 +564,8 @@ recompute_load_avg_mlfqs (void)
   fixed_point_t sixty = fix_int (60);
 
   int ready_threads = 0;
-  for (int i = 0; i < NUM_PRIO; i++){
+  int i;
+  for (i = 0; i < NUM_PRIO; i++){
     ready_threads += list_size (&ready_lists[i]);
   }
   /* Do not count the idle thread */

@@ -401,22 +401,26 @@ And we also recompute priority when the thread calls set_nice.
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
 
-We feel pretty comfortable with our design choices. We tried to keep it
-as simple as possible which made it easier to cover various edge cases.
-
 For ready queues, we decided to have 64 separate queues, which makes the
-insertion and deletion very simple. The only disadvantage it has over
+insertion and deletion very simple. The main disadvantage it has over
 having on sorted queue is that in order to check if there are threads with
 higher priority than the given thread we must check all the lists in
 [curr_thread_priority + 1, 64], which is almost always done inside a
-disable interrupts block. This could still be a better design choice since
+disable interrupts block. This could still be a solid design choice since
 this check is still constant time but if we had extra time we could check
-advantages/disadvantages of having one large ready queue.
+advantages and disadvantages of having one large ready queue.
 
-Also we were very careful in our implementation and  disabled interrupts
+Also, we were very careful in our implementation and disabled interrupts
 whenever there was a slightest risk of a race. If given extra time we
 could reduce the code inside interrupts and maybe try to optimize the
 fixed_point computations.
+
+Another potential improvement to our design of the BSD scheduler could
+incorporate the idea of priority donation. Right now, the BSD scheduler only
+cares about how long a thread has run and its nice value, with no consideration
+given to which threads are blocking other threads. If we could include that in
+a thread's priority, we could potentially improve our performance
+significantly.
 
 			   SURVEY QUESTIONS
 			   ================
