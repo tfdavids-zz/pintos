@@ -309,7 +309,7 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   enum intr_level old_level;
-  old_level = intr_disable();
+  old_level = intr_disable ();
 
   lock->holder = NULL;
   lock->priority = -1;
@@ -318,13 +318,13 @@ lock_release (struct lock *lock)
   list_remove (&lock->elem);
 
   /* re-calculate my priority from the locks I still hold */
-  if(!thread_mlfqs)
+  if (!thread_mlfqs)
     thread_calculate_priority ();
 
   sema_up (&lock->semaphore);
 
   thread_yield_if_not_highest ();
-  intr_set_level(old_level);
+  intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
