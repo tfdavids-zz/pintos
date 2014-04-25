@@ -365,9 +365,20 @@ ticks   A   B   C   A   B   C   to run
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
-One ambiguity we noticed when filling out the table was about how we 
-treat a running thread that was just  which When filling out the table.
-The only possible ambiguity seemed to be with choosing 
+1. When filling out the table we were uncertain about what happens when
+the running thread's priority is downgraded and is no longer the highest
+one: in this case we yield immediately to a thread with a higher priority.
+When there are a few threads with the highest priority, the code lets the
+current thread finish its time_slice and then runs the rest in
+round-robin.
+
+2. Another ambiguity had to do with the fact that computing recent_cpu,
+load_avg, priority in thread_tick consumes timer_ticks that we later 
+associate with the running thread, even though that thread didn't
+consume those ticks. For this table we assumed that between time
+t and t+4 the running thread consumes all 4 ticks and add increment
+recent_cpu four times. This table does not describe our system's behaviour 
+exactly but can be seen as a good approximation.
 
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?

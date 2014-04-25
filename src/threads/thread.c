@@ -80,6 +80,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void thread_calculate_priority (void);
+bool thread_has_highest_priority (struct thread *t);
 
 static void recompute_priority_mlfqs (struct thread *t, void *aux);
 static void recompute_recent_cpu_mlfqs (struct thread *t, void *aux);
@@ -181,13 +182,14 @@ thread_tick (void)
 	  else
 	    recompute_priority_mlfqs (t, NULL);
         }
+
+      /* Enforce preemption if thread no longer has highest priority */
+      if (!thread_has_highest_priority (t))
+	  intr_yield_on_return ();
     }
   
-  /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
-    {
       intr_yield_on_return ();
-    }
 }
 
 /* Prints thread statistics. */
@@ -379,13 +381,23 @@ thread_yield_if_not_highest (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  struct thread *cur = thread_current ();
+  if (!thread_has_highest_priority (thread_current ()))
+    thread_yield ();
+}
+
+/* Returns true if the thread has highest priority among waiting
+   threads*/
+bool
+thread_has_highest_priority (struct thread *t)
+{
+  ASSERT (intr_get_level () == INTR_OFF);
+
   int i;
-  for (i = cur->eff_priority + 1; i < NUM_PRIO; i++)
-    if(!list_empty (&ready_lists[i])) {
-      thread_yield ();
-      return;
+  for (i = t->eff_priority + 1; i < NUM_PRIO; i++)
+    if (!list_empty (&ready_lists[i])) {
+      return false;
     }
+  return true;
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
