@@ -114,8 +114,8 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
   struct thread *curr_t = thread_current ();
   curr_t->wakeup_time = start + ticks;
-  list_insert_ordered(&sleep_list, &curr_t->sleepelem, &sleeplist_less_func,
-                      NULL);
+  list_insert_ordered (&sleep_list, &curr_t->sleepelem, &sleeplist_less_func,
+                       NULL);
   thread_block ();  
   intr_set_level (old_level);
 }
@@ -198,13 +198,13 @@ timer_interrupt (struct intr_frame *args UNUSED)
   int64_t curr_time = timer_ticks();
 
   struct list_elem * e;
-  for (e = list_begin(&sleep_list); e != list_end(&sleep_list);)
+  for (e = list_begin (&sleep_list); e != list_end (&sleep_list);)
     {
-      struct thread * t = list_entry(e, struct thread, sleepelem);
+      struct thread * t = list_entry (e, struct thread, sleepelem);
       if (t->wakeup_time <= curr_time)
         {
-          e = list_remove(e);
-          thread_unblock(t);
+          e = list_remove (e);
+          thread_unblock (t);
         }
       else
         {
