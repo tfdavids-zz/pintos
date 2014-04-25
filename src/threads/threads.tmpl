@@ -323,13 +323,8 @@ allocation is costly and increases complexity, so we avoided it.
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
 Within struct threads:
-
-int nice;
-
-fixed_point_t recent_cpu;
-
-"int nice" stores the niceness value the thread
-"fixed_point_t recent_cpu" stores the recent cpu usage of the thread
+int nice;                           /* Niceness of thread, for mlfqs */
+fixed_point_t recent_cpu;           /* Recent cpu recieved, for mlfqs */
 
 Global variable(thread.c):
 
@@ -367,23 +362,37 @@ ticks   A   B   C   A   B   C   to run
 
 1. When filling out the table we were uncertain about what happens when
 the running thread's priority is downgraded and is no longer the highest
-one: in this case we yield immediately to a thread with a higher priority.
-When there are a few threads with the highest priority, the code lets the
-current thread finish its time_slice and then runs the rest in
-round-robin.
-
-2. Another ambiguity had to do with the fact that computing recent_cpu,
-load_avg, priority in thread_tick consumes timer_ticks that we later 
-associate with the running thread, even though that thread didn't
-consume those ticks. For this table we assumed that between time
-t and t+4 the running thread consumes all 4 ticks and add increment
-recent_cpu four times. This table does not describe our system's behaviour 
-exactly but can be seen as a good approximation.
+one, there are two possible scinerios at this point
+   - There is a ready thread with higher priority, in which case we
+   immediately
+   - There is no thread with higher priority, but there are threads with
+   the same priority as the running thread. In this case we allow the
+   thread to finish its time_slice and then run the other threads in
+   round robin(because the yielding thread is appended to the end of the
+   ready list)
+This matches the behaviour of our system.
 
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
 
+We are required to do the computations for load_avg, recent_cpu and
+priority inside a timer_interrupt because otherwise this computation
+could get interrupted and another thread which has a lower priority
+then the current one would have(if we had a chance to compute priority)
+can take over. So in order to do priority scheduling correctly we must
+know each threads priority at any given time.
 
+This of course comes with a performance overhead, because when we our
+computation is taking a long time(more than one tick) no other thread
+can interrupt it and take over. This increases the average finish time
+which affect performance.
+
+We tried to alleviate this by optimizing the computation for priority,
+we notice that priority of a thread changes only when recent_cpu or nice
+have been updated. So instead of updating priority for every thread every
+4 ticks, we only update it for the running thread unless
+timer_ticks () % TIMER_FREQ == 0, in which case we update all threads.
+And we also recompute priority when the thread calls set_nice.
 
 ---- RATIONALE ----
 
@@ -391,6 +400,23 @@ exactly but can be seen as a good approximation.
 >> disadvantages in your design choices.  If you were to have extra
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
+
+We feel pretty comfortable with our design choices. We tried to keep it
+as simple as possible which made it easier to cover various edge cases.
+
+For ready queues, we decided to have 64 separate queues, which makes the
+insertion and deletion very simple. The only disadvantage it has over
+having on sorted queue is that in order to check if there are threads with
+higher priority than the given thread we must check all the lists in
+[curr_thread_priority + 1, 64], which is almost always done inside a
+disable interrupts block. This could still be a better design choice since
+this check is still constant time but if we had extra time we could check
+advantages/disadvantages of having one large ready queue.
+
+Also we were very careful in our implementation and  disabled interrupts
+whenever there was a slightest risk of a race. If given extra time we
+could reduce the code inside interrupts and maybe try to optimize the
+fixed_point computations.
 
 			   SURVEY QUESTIONS
 			   ================
