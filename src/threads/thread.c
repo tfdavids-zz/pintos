@@ -177,19 +177,19 @@ thread_tick (void)
       /* Recompute all  priorities once every 4 ticks */
       if (curr_timer_ticks % 4 == 0)
         {
-	  if (curr_timer_ticks % TIMER_FREQ == 0)
-	    thread_foreach (recompute_priority_mlfqs, NULL);
-	  else
-	    recompute_priority_mlfqs (t, NULL);
+	      if (curr_timer_ticks % TIMER_FREQ == 0)
+	        thread_foreach (recompute_priority_mlfqs, NULL);
+	      else
+	        recompute_priority_mlfqs (t, NULL);
         }
 
       /* Enforce preemption if thread no longer has highest priority */
       if (!thread_has_highest_priority (t))
-	  intr_yield_on_return ();
+	    intr_yield_on_return ();
     }
   
   if (++thread_ticks >= TIME_SLICE)
-      intr_yield_on_return ();
+    intr_yield_on_return ();
 }
 
 /* Prints thread statistics. */
@@ -350,7 +350,7 @@ thread_exit (void)
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
-  list_remove (&thread_current()->allelem);
+  list_remove (&thread_current ()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -392,11 +392,12 @@ thread_has_highest_priority (struct thread *t)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  int i;
-  for (i = t->eff_priority + 1; i < NUM_PRIO; i++)
-    if (!list_empty (&ready_lists[i])) {
-      return false;
+  for (int i = t->eff_priority + 1; i < NUM_PRIO; i++)
+    {
+      if (!list_empty (&ready_lists[i]))
+        return false;
     }
+
   return true;
 }
 
@@ -443,10 +444,10 @@ thread_calculate_priority(void)
   struct thread *curr_thread = thread_current ();
   curr_thread->eff_priority = curr_thread->priority;
   struct list_elem *e;
-  for (e = list_begin(&curr_thread->lock_list);
-       e != list_end(&curr_thread->lock_list); e = list_next(e))
+  for (e = list_begin (&curr_thread->lock_list);
+       e != list_end (&curr_thread->lock_list); e = list_next (e))
     {
-      struct lock *l = list_entry(e, struct lock, elem);
+      struct lock *l = list_entry (e, struct lock, elem);
       if (l->priority > curr_thread->eff_priority)
         {
           curr_thread->eff_priority = l->priority;
@@ -479,7 +480,7 @@ thread_set_nice (int nice UNUSED)
 int
 thread_get_nice (void) 
 {
-  struct thread *current_thread = thread_current();
+  struct thread *current_thread = thread_current ();
   return current_thread->nice;
 }
 
@@ -490,8 +491,8 @@ thread_get_load_avg (void)
   enum intr_level old_level;
   old_level = intr_disable ();
 
-  fixed_point_t hundred = fix_int(100);
-  int curr_load_avg = fix_trunc(fix_mul(hundred, load_avg));
+  fixed_point_t hundred = fix_int (100);
+  int curr_load_avg = fix_trunc (fix_mul (hundred, load_avg));
   intr_set_level (old_level);
   return curr_load_avg;
 }
@@ -503,8 +504,8 @@ thread_get_recent_cpu (void)
   enum intr_level old_level;
   old_level = intr_disable ();
 
-  fixed_point_t hundred = fix_int(100);
-  int curr_recent_cpu = fix_trunc(fix_mul(hundred,
+  fixed_point_t hundred = fix_int (100);
+  int curr_recent_cpu = fix_trunc (fix_mul (hundred,
 					  thread_current ()->recent_cpu));
   intr_set_level (old_level);
   return curr_recent_cpu;
@@ -513,11 +514,11 @@ thread_get_recent_cpu (void)
 void
 recompute_priority_mlfqs (struct thread *t, void *aux UNUSED)
 {
-  ASSERT  (intr_get_level () == INTR_OFF);
+  ASSERT (intr_get_level () == INTR_OFF);
 
-  fixed_point_t nfour = fix_int(-4);
+  fixed_point_t nfour = fix_int (-4);
   
-  t->eff_priority = PRI_MAX + fix_trunc(fix_div(t->recent_cpu, nfour)) -
+  t->eff_priority = PRI_MAX + fix_trunc (fix_div (t->recent_cpu, nfour)) -
     t->nice * 2;
   if (t->eff_priority < PRI_MIN)
     {
@@ -528,42 +529,41 @@ recompute_priority_mlfqs (struct thread *t, void *aux UNUSED)
       t->eff_priority = PRI_MAX;
     }
   /* If in ready_lists, move to the appropriate one */
-  if(t->status == THREAD_READY)
+  if (t->status == THREAD_READY)
     {
-      list_remove(&t->elem);
-      ready_lists_insert(t);
+      list_remove (&t->elem);
+      ready_lists_insert (t);
     }    
 }
 
 void
 recompute_recent_cpu_mlfqs (struct thread *t, void *aux UNUSED)
 {
-  ASSERT  (intr_get_level () == INTR_OFF);
+  ASSERT (intr_get_level () == INTR_OFF);
 
-  fixed_point_t one = fix_int(1);
-  fixed_point_t two = fix_int(2);
+  fixed_point_t one = fix_int (1);
+  fixed_point_t two = fix_int (2);
   t->recent_cpu = fix_add(
                     fix_mul(
                       fix_div(
-                        fix_mul(two, load_avg),
-                        fix_add(fix_mul(two, load_avg),
+                        fix_mul (two, load_avg),
+                        fix_add (fix_mul (two, load_avg),
                           one)), 
                       t->recent_cpu),
-                    fix_int(t->nice));
+                    fix_int (t->nice));
 }
 
 void
 recompute_load_avg_mlfqs (void)
 {
-  ASSERT  (intr_get_level () == INTR_OFF);
+  ASSERT (intr_get_level () == INTR_OFF);
 
-  fixed_point_t one = fix_int(1);
-  fixed_point_t fifty_nine = fix_int(59);
-  fixed_point_t sixty = fix_int(60);
+  fixed_point_t one = fix_int (1);
+  fixed_point_t fifty_nine = fix_int (59);
+  fixed_point_t sixty = fix_int (60);
 
   int ready_threads = 0;
-  int i;
-  for (i = 0; i < NUM_PRIO; i++){
+  for (int i = 0; i < NUM_PRIO; i++){
     ready_threads += list_size (&ready_lists[i]);
   }
   /* Do not count the idle thread */
@@ -573,13 +573,13 @@ recompute_load_avg_mlfqs (void)
   if(thread_current () != idle_thread)
     ready_threads++;
 
-  load_avg = fix_add(
-         fix_mul(
-           fix_div(fifty_nine, sixty),
+  load_avg = fix_add (
+         fix_mul (
+           fix_div (fifty_nine, sixty),
            load_avg),
-         fix_mul(
-           fix_div(one, sixty),
-           fix_int(ready_threads))
+         fix_mul (
+           fix_div (one, sixty),
+           fix_int (ready_threads))
          );
 }
 
