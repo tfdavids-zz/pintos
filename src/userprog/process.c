@@ -424,6 +424,37 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
+static void
+setup_args (void **esp, const char *file_name)
+{
+  // TODO: verify that this works
+
+  char s[1024];
+  memcpy(s, file_name, strlen(file_name));
+  char *token, *save_ptr;
+  int argc = 0;
+
+  for (token = strtok_r (s, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr))
+    {
+      *esp = *esp - strlen(token) - 1;
+      *((char *)*esp) = token;
+    }
+
+  // now round to word
+  *esp -= ((int) *esp) % 4;
+
+  // add null pointer
+  *esp = *esp - 4;
+  *((char **)*esp) = NULL;
+
+  int i;
+  for (i = 0; i < argc; i++)
+    {
+      *esp = *esp - 4;
+    }
+}
+
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
@@ -432,16 +463,19 @@ setup_stack (void **esp, const char *file_name)
   uint8_t *kpage;
   bool success = false;
 
-  // TODO: tokenize filename and put arguments onto the stack
-
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12;
+        {
+          *esp = PHYS_BASE;
+          setup_args(esp, file_name);
+        }
       else
-        palloc_free_page (kpage);
+        {
+          palloc_free_page (kpage);
+        }
     }
   return success;
 }
