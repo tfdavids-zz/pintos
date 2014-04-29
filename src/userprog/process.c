@@ -434,21 +434,24 @@ setup_args (void **esp, const char *file_name, void *aux)
   // TODO: verify that this works
 
   char s[1024]; /* Max arg size = 1KB */
-  memcpy(s, aux, strlen ((char *)aux));
+  char *curr = s;
   char *token, *save_ptr;
-  int argc = 0;
+  int argc = 0, len = 0;
 
-  for (token = strtok_r (s, " ", &save_ptr); token != NULL;
+  for (token = strtok_r ((char *)aux, " ", &save_ptr); token != NULL;
        token = strtok_r (NULL, " ", &save_ptr))
     {
-      *esp = *esp - strlen(token) - 1;
-      strlcpy(*esp, token, strlen(token) + 1);
+      strlcpy(curr, token, strlen(token) + 1);
+      len += strlen(token) + 1;
+      curr += strlen(token) + 1;
       argc++;
-      printf("Pushing '%s' onto the stack!\n", (char *)*esp);
     }
 
+  *esp = *esp - len;
+  memcpy(*esp, s, len);
+
   // save location of first arg for later
-  char *curr = *esp;
+  curr = *esp;
 
   // now round to word
   *esp -= ((uint32_t) *esp) % sizeof(uint32_t);
