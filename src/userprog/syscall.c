@@ -3,16 +3,17 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "lib/user/syscall.h"
 
 #define MAX_ARGS 3
-static uint8_t syscall_arg_num =
-  [0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1];
+static uint8_t syscall_arg_num[] =
+  {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1};
 
-static void syscall_handler (struct intr_frame *);
+static void syscall_handler (struct intr_frame *f);
 static void sys_halt (struct intr_frame *f) NO_RETURN;
 static void sys_exit (struct intr_frame *f, int status) NO_RETURN;
 static void sys_exec (struct intr_frame *f, const char *file);
-static void sys_wait (struct intr_frame *f, pid_t);
+static void sys_wait (struct intr_frame *f, pid_t pid);
 static void sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size);
 static void sys_remove (struct intr_frame *f, const char *file);
@@ -29,7 +30,7 @@ static void sys_close (struct intr_frame *f, int fd);
 void
 syscall_init (void) 
 {
-  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  intr_register_int (0x30, 3, INTR_ON, &syscall_handler, "syscall");
 }
 
 static void
@@ -41,9 +42,11 @@ syscall_handler (struct intr_frame *f UNUSED)
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
   
-  for (int i = 0; i < arg_num; i++)
+  int i;
+  for (i = 0; i < arg_num; i++)
     {
-      ((uint32_t *)intr_esp)++;
+      // ((uint32_t *)intr_esp)++;
+      intr_esp += sizeof(uint32_t);
       args[i] = *((uint32_t *)intr_esp);
     }
 
@@ -90,12 +93,11 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_CHDIR:
       case SYS_MKDIR:
       case SYS_READDIR:
-      case SYS_READDIR:
       case SYS_ISDIR:
       case SYS_INUMBER:
       default:
         /* TODO: Decide what to do in this case. */
-        printf("System call not implemented.\n") 
+        printf ("System call not implemented.\n");
     }
 }
 
@@ -103,7 +105,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 static void sys_halt (struct intr_frame *f) NO_RETURN;
 static void sys_exit (struct intr_frame *f, int status) NO_RETURN;
 static void sys_exec (struct intr_frame *f, const char *file);
-static void sys_wait (struct intr_frame *f, pid_t);
+static void sys_wait (struct intr_frame *f, pid_t pid);
 static void sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size);
 static void sys_remove (struct intr_frame *f, const char *file);
