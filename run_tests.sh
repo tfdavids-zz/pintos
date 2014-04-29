@@ -5,7 +5,7 @@ if [[ $1 =~ ^[0-9]+$ ]]; then
     make $test.result VERBOSE=1
 elif [ "$1" != "" ]; then
     make clean
-    make tests/threads/$1.result VERBOSE=1
+    make tests/userprog/$1.result VERBOSE=1
 else
     make clean
     make check

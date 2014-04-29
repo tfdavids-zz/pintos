@@ -52,6 +52,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   switch (syscall_num)
     {
+      /*
       case SYS_HALT:
         sys_halt (f);
         break;
@@ -95,6 +96,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_READDIR:
       case SYS_ISDIR:
       case SYS_INUMBER:
+      */
       default:
         /* TODO: Decide what to do in this case. */
         printf ("System call not implemented.\n");

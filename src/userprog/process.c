@@ -19,7 +19,7 @@
 #include "threads/vaddr.h"
 
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (const char *cmdline, void (**eip) (void), void **esp, void *aux);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -50,7 +50,10 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  char *file_name = file_name_;
+  char file_name[1024];
+  int len = (int) (strchr(file_name_, ' ') - (char *)file_name_) + 1;
+  strlcpy (file_name, file_name_, len);
+  void *aux = file_name_;
   struct intr_frame if_;
   bool success;
 
@@ -59,7 +62,7 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (file_name, &if_.eip, &if_.esp, aux);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -196,7 +199,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp, const char *file_name);
+static bool setup_stack (void **esp, const char *file_name, void *aux);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -207,7 +210,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp) 
+load (const char *file_name, void (**eip) (void), void **esp, void *aux) 
 {
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
@@ -303,7 +306,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp, file_name))
+  if (!setup_stack (esp, file_name, aux))
     goto done;
 
   /* Start address. */
@@ -426,12 +429,12 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 static void
-setup_args (void **esp, const char *file_name)
+setup_args (void **esp, const char *file_name, void *aux)
 {
   // TODO: verify that this works
 
-  char s[1024];
-  memcpy(s, file_name, strlen(file_name));
+  char s[1024]; /* Max arg size = 1KB */
+  memcpy(s, aux, strlen ((char *)aux));
   char *token, *save_ptr;
   int argc = 0;
 
@@ -439,27 +442,45 @@ setup_args (void **esp, const char *file_name)
        token = strtok_r (NULL, " ", &save_ptr))
     {
       *esp = *esp - strlen(token) - 1;
-      *((char *)*esp) = token;
+      strlcpy(*esp, token, strlen(token) + 1);
+      argc++;
+      printf("Pushing '%s' onto the stack!\n", (char *)*esp);
     }
 
+  // save location of first arg for later
+  char *curr = *esp;
+
   // now round to word
-  *esp -= ((int) *esp) % 4;
+  *esp -= ((uint32_t) *esp) % sizeof(uint32_t);
 
   // add null pointer
-  *esp = *esp - 4;
+  *esp = *esp - sizeof(char *);
   *((char **)*esp) = NULL;
+
+  *esp -= argc * sizeof(char *);
+  char **argv = *esp;
 
   int i;
   for (i = 0; i < argc; i++)
     {
-      *esp = *esp - 4;
+      argv[i] = curr;
+      curr += strlen(curr) + 1;
     }
+
+  *esp -= sizeof(char **);
+  *((char **)*esp) = argv;
+
+  *esp -= sizeof(int);
+  *(int *)*esp = argc;
+
+  *esp -= sizeof(void *);
+  *(void **)*esp = NULL;
 }
 
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp, const char *file_name) 
+setup_stack (void **esp, const char *file_name, void *aux) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -471,7 +492,7 @@ setup_stack (void **esp, const char *file_name)
       if (success)
         {
           *esp = PHYS_BASE;
-          setup_args(esp, file_name);
+          setup_args(esp, file_name, aux);
         }
       else
         {
