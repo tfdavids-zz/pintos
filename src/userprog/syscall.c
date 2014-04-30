@@ -56,9 +56,11 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_HALT:
         sys_halt (f);
         break;
+*/
       case SYS_EXIT:
         sys_exit (f, (int)args[0]);
         break;
+/*
       case SYS_EXEC:
         sys_exec (f, (const char *)args[0]);
       case SYS_WAIT:
@@ -79,9 +81,11 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_READ:
         sys_read (f, (int)args[0], (void *)args[1], (unsigned)args[2]);
         break; 
+*/
       case SYS_WRITE:
         sys_write (f, (int)args[0], (const void *)args[1], (unsigned)args[2]);
         break;
+/*
       case SYS_SEEK:
         sys_seek (f, (int)args[0], (unsigned)args[1]);
         break;
@@ -105,7 +109,13 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 /* TODO: Validate user memory. */
 static void sys_halt (struct intr_frame *f) NO_RETURN;
-static void sys_exit (struct intr_frame *f, int status) NO_RETURN;
+
+static void sys_exit (struct intr_frame *f, int status)
+{
+  f->eax = status;
+  thread_exit ();
+}
+
 static void sys_exec (struct intr_frame *f, const char *file);
 static void sys_wait (struct intr_frame *f, pid_t pid);
 static void sys_create (struct intr_frame *f, const char *file,
@@ -115,8 +125,20 @@ static void sys_open (struct intr_frame *f, const char *file);
 static void sys_filesize (struct intr_frame *f, int fd);
 static void sys_read (struct intr_frame *f, int fd, void *buffer,
   unsigned length);
+
 static void sys_write (struct intr_frame *f, int fd, const void *buffer,
-  unsigned length);
+  unsigned length)
+{
+  if (fd != 1)
+    {
+      printf ("Writing to anything other than fd 1 not implemented.\n");
+      return;
+    }
+
+  putbuf (buffer, length);
+  f->eax = length; // TODO: return number of bytes actually written!
+}
+
 static void sys_seek (struct intr_frame *f, int fd, unsigned position);
 static void sys_tell (struct intr_frame *f, int fd);
 static void sys_close (struct intr_frame *f, int fd);
