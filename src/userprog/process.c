@@ -35,7 +35,6 @@ process_execute (const char *file_name)
   char *pch = strchr (file_name, ' ');
   int index = pch ? pch - file_name : 14;
   strlcpy (process_name, file_name, index + 1);
-  printf("process_name = %s\n", process_name);
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -58,7 +57,8 @@ start_process (void *file_name_)
 {
   char file_name[1024];
   int i;
-  for (i = 0; i < 1024; i++)
+  /* Max file name size = 14 */
+  for (i = 0; i < 14; i++)
     {
       if (((char *)file_name_)[i] == ' ')
         {
@@ -118,6 +118,9 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  int status = 0; // TODO: figure out status
+  printf ("%s: exit(%d)\n", cur->name, status);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -464,7 +467,9 @@ setup_args (void **esp, const char *file_name, void *aux)
       argc++;
     }
 
+  printf("*esp = %#x\n", *esp);
   *esp = *esp - len;
+  printf("*esp = %#x\n", *esp);
   memcpy(*esp, s, len);
 
   // save location of first arg for later
@@ -472,12 +477,15 @@ setup_args (void **esp, const char *file_name, void *aux)
 
   // now round to word
   *esp -= ((uint32_t) *esp) % sizeof(uint32_t);
+  printf("*esp = %#x\n", *esp);
 
   // add null pointer
   *esp = *esp - sizeof(char *);
   *((char **)*esp) = NULL;
+  printf("*esp = %#x\n", *esp);
 
   *esp -= argc * sizeof(char *);
+  printf("*esp = %#x\n", *esp);
   char **argv = *esp;
 
   int i;
@@ -488,12 +496,15 @@ setup_args (void **esp, const char *file_name, void *aux)
     }
 
   *esp -= sizeof(char **);
+  printf("*esp = %#x\n", *esp);
   *((char **)*esp) = argv;
 
   *esp -= sizeof(int);
+  printf("*esp = %#x\n", *esp);
   *(int *)*esp = argc;
 
   *esp -= sizeof(void *);
+  printf("*esp = %#x\n", *esp);
   *(void **)*esp = NULL;
 }
 

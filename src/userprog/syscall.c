@@ -36,7 +36,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
+  // printf ("system call!\n");
   uint32_t args[MAX_ARGS];
   void *intr_esp = f->esp;
   uint32_t syscall_num = *((uint32_t *)intr_esp);
