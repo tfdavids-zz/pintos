@@ -31,6 +31,12 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
+  const char process_name[14];
+  char *pch = strchr (file_name, ' ');
+  int index = pch ? pch - file_name : 14;
+  strlcpy (process_name, file_name, index + 1);
+  printf("process_name = %s\n", process_name);
+
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -39,7 +45,7 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -51,8 +57,19 @@ static void
 start_process (void *file_name_)
 {
   char file_name[1024];
-  int len = (int) (strchr(file_name_, ' ') - (char *)file_name_) + 1;
-  strlcpy (file_name, file_name_, len);
+  int i;
+  for (i = 0; i < 1024; i++)
+    {
+      if (((char *)file_name_)[i] == ' ')
+        {
+          file_name[i] = '\0';
+          break;
+        } 
+      else
+        {
+          file_name[i] = ((char *)file_name_)[i];
+        }
+    }
   void *aux = file_name_;
   struct intr_frame if_;
   bool success;
@@ -65,7 +82,7 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp, aux);
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
+  palloc_free_page (file_name_);
   if (!success) 
     thread_exit ();
 
