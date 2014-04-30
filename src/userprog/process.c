@@ -467,9 +467,9 @@ setup_args (void **esp, const char *file_name, void *aux)
       argc++;
     }
 
-  printf("*esp = %#x\n", *esp);
+  //printf("*esp = %#x\n", *esp);
   *esp = *esp - len;
-  printf("*esp = %#x\n", *esp);
+  //printf("*esp = %#x\n", *esp);
   memcpy(*esp, s, len);
 
   // save location of first arg for later
@@ -477,15 +477,15 @@ setup_args (void **esp, const char *file_name, void *aux)
 
   // now round to word
   *esp -= ((uint32_t) *esp) % sizeof(uint32_t);
-  printf("*esp = %#x\n", *esp);
+  //printf("*esp = %#x\n", *esp);
 
   // add null pointer
   *esp = *esp - sizeof(char *);
   *((char **)*esp) = NULL;
-  printf("*esp = %#x\n", *esp);
+  //printf("*esp = %#x\n", *esp);
 
   *esp -= argc * sizeof(char *);
-  printf("*esp = %#x\n", *esp);
+  //printf("*esp = %#x\n", *esp);
   char **argv = *esp;
 
   int i;
@@ -496,15 +496,15 @@ setup_args (void **esp, const char *file_name, void *aux)
     }
 
   *esp -= sizeof(char **);
-  printf("*esp = %#x\n", *esp);
+  //printf("*esp = %#x\n", *esp);
   *((char **)*esp) = argv;
 
   *esp -= sizeof(int);
-  printf("*esp = %#x\n", *esp);
+  //printf("*esp = %#x\n", *esp);
   *(int *)*esp = argc;
 
   *esp -= sizeof(void *);
-  printf("*esp = %#x\n", *esp);
+  //printf("*esp = %#x\n", *esp);
   *(void **)*esp = NULL;
 }
 
