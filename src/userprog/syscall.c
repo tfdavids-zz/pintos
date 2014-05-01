@@ -3,6 +3,7 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 #include "lib/user/syscall.h"
 
 #define MAX_ARGS 3
@@ -26,6 +27,7 @@ static void sys_write (struct intr_frame *f, int fd, const void *buffer,
 static void sys_seek (struct intr_frame *f, int fd, unsigned position);
 static void sys_tell (struct intr_frame *f, int fd);
 static void sys_close (struct intr_frame *f, int fd);
+static bool is_valid_ptr (void *ptr);
 
 void
 syscall_init (void) 
@@ -45,18 +47,19 @@ syscall_handler (struct intr_frame *f UNUSED)
   int i;
   for (i = 0; i < arg_num; i++)
     {
-      // ((uint32_t *)intr_esp)++;
+      if (!is_valid_ptr (intr_esp))
+	{
+	  /* Terminate process and free resources */
+	}
       intr_esp += sizeof(uint32_t);
       args[i] = *((uint32_t *)intr_esp);
     }
 
   switch (syscall_num)
     {
-      /*
       case SYS_HALT:
         sys_halt (f);
         break;
-*/
       case SYS_EXIT:
         sys_exit (f, (int)args[0]);
         break;
@@ -107,8 +110,24 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 }
 
+static bool is_valid_ptr (void *ptr)
+{
+  /* If null or invalid addr return false */
+  if (ptr == NULL || !is_user_vaddr (ptr))
+    return false;
+
+  /* If virtual address is unmapped return false */
+  if (pagedir_get_page (thread_current ()->pagedir, ptr) == NULL)
+    return false;
+
+  return true;
+}
+
 /* TODO: Validate user memory. */
-static void sys_halt (struct intr_frame *f) NO_RETURN;
+static void sys_halt (struct intr_frame *f)
+{
+  shutdown_power_off ();
+}
 
 static void sys_exit (struct intr_frame *f, int status)
 {
