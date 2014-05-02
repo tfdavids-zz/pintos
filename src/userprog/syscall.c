@@ -12,6 +12,8 @@
 static uint8_t syscall_arg_num[] =
   {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1};
 
+struct lock filesys_lock;
+
 static void syscall_handler (struct intr_frame *f);
 static void sys_halt (struct intr_frame *f) NO_RETURN;
 static void sys_exit (struct intr_frame *f, int status) NO_RETURN;
@@ -35,6 +37,7 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init(&filesys_lock);
 }
 
 static void
@@ -45,8 +48,6 @@ syscall_handler (struct intr_frame *f UNUSED)
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
   
-  printf ("syscall_num = %d\n", syscall_num);
-
   int i;
   for (i = 0; i < arg_num; i++)
     {
@@ -68,11 +69,9 @@ syscall_handler (struct intr_frame *f UNUSED)
         sys_exit (f, (int)args[0]);
         break;
       case SYS_EXEC:
-        printf ("SYS_EXEC %s\n", (const char *)args[0]);
         sys_exec (f, (const char *)args[0]);
         break;
       case SYS_WAIT:
-        printf ("SYS_WAIT\n");
         sys_wait (f, (pid_t)args[0]);
         break;
       case SYS_CREATE:
@@ -91,7 +90,6 @@ syscall_handler (struct intr_frame *f UNUSED)
         sys_read (f, (int)args[0], (void *)args[1], (unsigned)args[2]);
         break; 
       case SYS_WRITE:
-        printf ("SYS_WRITE\n");
         sys_write (f, (int)args[0], (const void *)args[1], (unsigned)args[2]);
         break;
       case SYS_SEEK:
@@ -118,11 +116,15 @@ static bool is_valid_ptr (void *ptr)
 {
   /* If null or invalid addr return false */
   if (ptr == NULL || !is_user_vaddr (ptr))
-    return false;
+    {
+      return false;
+    }
 
   /* If virtual address is unmapped return false */
   if (pagedir_get_page (thread_current ()->pagedir, ptr) == NULL)
-    return false;
+    {
+      return false;
+    }
 
   return true;
 }
@@ -136,22 +138,28 @@ static void sys_halt (struct intr_frame *f)
 static void sys_exit (struct intr_frame *f, int status)
 {
   f->eax = status;
+  thread_current ()->exit_status = status;
   thread_exit ();
 }
 
 static void sys_exec (struct intr_frame *f, const char *file)
 {
-  printf("in exec\n");
+  /* TODO: We need to evaluate every pointer from file to
+   * file + strlen(file) ... */
+  if (!is_valid_ptr(file) || !is_valid_ptr(file + strlen(file)))
+    {
+      ASSERT(false); 
+    }
+  
+  lock_acquire(&filesys_lock);
   int tid = process_execute (file);
+  lock_release(&filesys_lock);
   f->eax = tid;
 }
 
 static void sys_wait (struct intr_frame *f, pid_t pid)
 {
-  printf ("Waiting . . .\n");
-  int status = process_wait (pid);
-  printf ("Waited\n");
-  f->eax = status;
+  f->eax = process_wait (pid);
 }
 
 static void sys_create (struct intr_frame *f, const char *file,

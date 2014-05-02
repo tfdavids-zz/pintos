@@ -108,17 +108,23 @@ process_wait (tid_t child_tid UNUSED)
   if (child->has_been_waited)
     return -1;
 
+  child->has_been_waited = true;
+
+  /* TODO: PROBLEM: As soon as a thread is set to
+   * the THREAD_DYING state, we can no longer access
+   * any of its struct's contents -- the memory for that thread
+   * struct might have already been freed.
+   *
+   * This means that we cannot reliably check a) child->status 
+   * or b) child->exit_status.
+   */
   if (child->status == THREAD_DYING)
     {
-      child->has_been_waited = true;
       return child->exit_status;
     }
 
-  printf ("Downing sema once\n");
   sema_down (&child->sema);
-  printf ("Downing sema twice\n");
   sema_down (&child->sema);
-  printf ("Successfully downed sema\n");
 
   return child->exit_status;
 }
@@ -130,7 +136,6 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  cur->exit_status = 0; // TODO: is this okay?
   printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
 
   sema_up (&cur->sema); // notify any parent waiting on us

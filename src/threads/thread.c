@@ -703,12 +703,11 @@ init_thread (struct thread *t, const char *name, int priority)
     }
   else
     {
-      t->tid = thread_current ()->tid;
+      t->parent_tid = thread_current ()->tid;
       list_push_back (&thread_current ()->children, &t->child_elem);
     }
   t->exit_status = -1; // will be set to 0 when we exit gracefully
   t->has_been_waited = false;
-  
 
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
