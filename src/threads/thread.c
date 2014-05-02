@@ -256,14 +256,15 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   /* Handle child/parent process issues */
-
   t->parent_tid = thread_current ()->tid;
+
+  /* Create struct child_state representing this child thread */
   struct child_state *cs = (struct child_state *)
     malloc (sizeof (struct child_state));
-  cs->has_been_waited = false;
   cs->exit_status = -1; // will be set to 0 when we exit gracefully
-  cs->status = THREAD_BLOCKED;
   cs->tid = tid;
+  cs->has_loaded = false;
+  cs->has_finished = false;
   list_push_back (&thread_current ()->children, &cs->elem);
 
   /* Yield current thread if not highest. */

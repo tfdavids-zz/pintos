@@ -29,10 +29,12 @@ typedef int tid_t;
 struct child_state
   {
     struct list_elem elem;              /* List element. */
-    enum thread_status status;          /* Thread state. */
     int exit_status;                    /* Exit status (if applicable) */
     tid_t tid;
-    bool has_been_waited;
+    bool has_loaded;
+    bool load_success;
+    bool has_finished;
+    struct thread *child;
   };
 
 /* A kernel thread or user process.
@@ -111,8 +113,8 @@ struct thread
 
     struct list children;               /* Stores state about threads
 					   spawned by this thread */
-    tid_t parent_tid;                   /* Parent process pid of this
-					   process */
+    struct thread *parent;
+    tid_t parent_tid;                   /* Parent process pid of this process */
     int exit_status;                    /* Exit status (if applicable) */
 
     struct condition child_loaded;      /* Child finished loading Waiting thread finished */

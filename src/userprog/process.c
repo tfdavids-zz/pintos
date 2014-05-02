@@ -35,7 +35,7 @@ process_execute (const char *file_name)
   tid_t tid;
 
   /* TODO: What if length of file_name is > FILENAME_MAX_LEN? */
-  const char process_name[FILENAME_MAX_LEN + 1];
+  const char process_name[FILENAME_MAX_LEN + 1]; // TODO: fix warning about this not being constant
   char *pch = strchr (file_name, ' ');
   int index = pch ? pch - file_name : FILENAME_MAX_LEN;
   strlcpy (process_name, file_name, index + 1);
@@ -50,14 +50,31 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    {
+      palloc_free_page (fn_copy); 
+      return tid;
+    }
 
-  struct thread *child = thread_lookup (tid);
-  //sema_down (&child->sema);
+  /* Wait for child to finish loading before returning */
+  struct child_state *cs = thread_child_lookup (thread_current (), tid);
+  if (!cs)
+    {
+      palloc_free_page (fn_copy); // TODO: is this necessary? find out where this is normally freed
+      return TID_ERROR;
+    }
+
   lock_acquire (&thread_current ()->child_loaded_lock);
-  cond_wait (&thread_current ()->child_loaded,
-	     &thread_current ()->child_loaded_lock);
+  while (!cs->has_loaded)
+    {
+      cond_wait (&thread_current ()->child_loaded,
+	    &thread_current ()->child_loaded_lock);
+    }
   lock_release (&thread_current ()->child_loaded_lock);
+  if (cs->load_success == false)
+    {
+      return TID_ERROR;
+    }
+
   return tid; // TODO: if error, change it
 }
 
@@ -75,21 +92,27 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (thread_current ()->name, &if_.eip, &if_.esp, file_name_);
-
-  /* If load failed, quit. */
   palloc_free_page (file_name_);
-  if (!success) 
-    thread_exit ();
 
+  /* Inform parent of our success */
   struct thread *parent = thread_lookup (thread_current ()->parent_tid);
   if (parent)
     {
       lock_acquire (&parent->child_loaded_lock);
+      struct child_state *cs = thread_child_lookup (parent, thread_current ()->tid);
+      cs->has_loaded = true;
+      cs->load_success = success;
       cond_signal (&parent->child_loaded, &parent->child_loaded_lock);
       lock_release (&parent->child_loaded_lock);
     }
 
-  //sema_up(&thread_current ()->sema);
+  /* If load failed, quit. */
+  if (!success) 
+    {
+      thread_current ()->exit_status = -1;
+      thread_exit ();
+    }
+
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -115,10 +138,6 @@ process_wait (tid_t child_tid UNUSED)
   struct child_state *cs = thread_child_lookup (thread_current (), child_tid);
   if (!cs)
     return -1;
-  if (cs->has_been_waited)
-    return -1;
-
-  cs->has_been_waited = true;
 
   /* TODO: PROBLEM: As soon as a thread is set to
    * the THREAD_DYING state, we can no longer access
@@ -128,10 +147,6 @@ process_wait (tid_t child_tid UNUSED)
    * This means that we cannot reliably check a) child->status 
    * or b) child->exit_status.
    */
-  if (cs->status == THREAD_DYING)
-    {
-      return cs->exit_status;
-    }
 
   lock_acquire (&thread_current ()->child_exited_lock);
   while (thread_lookup(child_tid) != NULL)
