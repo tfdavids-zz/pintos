@@ -101,7 +101,6 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-<<<<<<< HEAD
   struct thread *child = thread_lookup (child_tid);
   if (!child || child->parent_tid != thread_current ()->tid)
     return -1;

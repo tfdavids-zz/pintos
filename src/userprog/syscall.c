@@ -132,12 +132,14 @@ static void sys_exit (struct intr_frame *f, int status)
 
 static void sys_exec (struct intr_frame *f, const char *file)
 {
-  ASSERT(false);
+  int tid = process_execute (file);
+  f->eax = tid;
 }
 
 static void sys_wait (struct intr_frame *f, pid_t pid)
 {
-  ASSERT(false);
+  int status = process_wait (pid);
+  f->eax = status;
 }
 
 static void sys_create (struct intr_frame *f, const char *file,
