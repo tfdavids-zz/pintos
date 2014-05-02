@@ -5,6 +5,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "lib/user/syscall.h"
+/* TODO: Is it appropriate for the kernel to include header files designed
+ * for user-land? */
 
 #define MAX_ARGS 3
 static uint8_t syscall_arg_num[] =
@@ -50,7 +52,8 @@ syscall_handler (struct intr_frame *f UNUSED)
     {
       if (!is_valid_ptr (intr_esp))
       {
-        /* Terminate process and free resources */
+        /* TODO: Terminate process and free resources */
+        ASSERT(false)
       }
       intr_esp = (uint32_t *)intr_esp + 1;
       args[i] = *((uint32_t *)intr_esp);
@@ -138,6 +141,7 @@ static void sys_exit (struct intr_frame *f, int status)
 
 static void sys_exec (struct intr_frame *f, const char *file)
 {
+  printf("in exec\n");
   int tid = process_execute (file);
   f->eax = tid;
 }
@@ -186,7 +190,6 @@ static void sys_write (struct intr_frame *f, int fd, const void *buffer,
       printf ("Writing to anything other than fd 1 not implemented.\n");
       return;
     }
-
   putbuf (buffer, length);
   f->eax = length; // TODO: return number of bytes actually written!
 }
