@@ -53,7 +53,11 @@ process_execute (const char *file_name)
     palloc_free_page (fn_copy); 
 
   struct thread *child = thread_lookup (tid);
-  sema_down (&child->sema);
+  //sema_down (&child->sema);
+  lock_acquire (&thread_current ()->child_loaded_lock);
+  cond_wait (&thread_current ()->child_loaded,
+	     &thread_current ()->child_loaded_lock);
+  lock_release (&thread_current ()->child_loaded_lock);
   return tid; // TODO: if error, change it
 }
 
@@ -77,8 +81,15 @@ start_process (void *file_name_)
   if (!success) 
     thread_exit ();
 
-  sema_up(&thread_current ()->sema);
+  struct thread *parent = thread_lookup (thread_current ()->parent_tid);
+  if (parent)
+    {
+      lock_acquire (&parent->child_loaded_lock);
+      cond_signal (&parent->child_loaded, &parent->child_loaded_lock);
+      lock_release (&parent->child_loaded_lock);
+    }
 
+  //sema_up(&thread_current ()->sema);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -101,14 +112,13 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  struct thread *child = thread_lookup (child_tid);
-  if (!child || child->parent_tid != thread_current ()->tid)
+  struct child_state *cs = thread_child_lookup (thread_current (), child_tid);
+  if (!cs)
+    return -1;
+  if (cs->has_been_waited)
     return -1;
 
-  if (child->has_been_waited)
-    return -1;
-
-  child->has_been_waited = true;
+  cs->has_been_waited = true;
 
   /* TODO: PROBLEM: As soon as a thread is set to
    * the THREAD_DYING state, we can no longer access
@@ -118,15 +128,23 @@ process_wait (tid_t child_tid UNUSED)
    * This means that we cannot reliably check a) child->status 
    * or b) child->exit_status.
    */
-  if (child->status == THREAD_DYING)
+  if (cs->status == THREAD_DYING)
     {
-      return child->exit_status;
+      return cs->exit_status;
     }
 
-  sema_down (&child->sema);
-  sema_down (&child->sema);
+  lock_acquire (&thread_current ()->child_exited_lock);
+  while (thread_lookup(child_tid) != NULL)
+    {
+      cond_wait (&thread_current ()->child_exited,
+		 &thread_current ()->child_exited_lock);
+    }
+  lock_release (&thread_current ()->child_exited_lock);
 
-  return child->exit_status;
+  //sema_down (&child->sema);
+  //sema_down (&child->sema);
+
+  return cs->exit_status;
 }
 
 /* Free the current process's resources. */
@@ -138,7 +156,15 @@ process_exit (void)
 
   printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
 
-  sema_up (&cur->sema); // notify any parent waiting on us
+  struct thread *parent = thread_lookup (thread_current ()->parent_tid);
+  if (parent)
+    {
+      lock_acquire (&parent->child_exited_lock);
+      cond_signal (&parent->child_exited, &parent->child_exited_lock);
+      lock_release (&parent->child_exited_lock);
+    }
+
+  //sema_up (&cur->sema); // notify any parent waiting on us
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

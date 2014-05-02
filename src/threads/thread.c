@@ -255,6 +255,17 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  /* Handle child/parent process issues */
+
+  t->parent_tid = thread_current ()->tid;
+  struct child_state *cs = (struct child_state *)
+    malloc (sizeof (struct child_state));
+  cs->has_been_waited = false;
+  cs->exit_status = -1; // will be set to 0 when we exit gracefully
+  cs->status = THREAD_BLOCKED;
+  cs->tid = tid;
+  list_push_back (&thread_current ()->children, &cs->elem);
+
   /* Yield current thread if not highest. */
   enum intr_level old_level = intr_disable ();
   thread_yield_if_not_highest ();
@@ -686,6 +697,14 @@ init_thread (struct thread *t, const char *name, int priority)
 	      t->recent_cpu = thread_current ()->recent_cpu;
 	    }
     }
+
+  list_init (&t->children);
+  sema_init (&t->sema, 0);
+  cond_init (&t->child_loaded);
+  lock_init (&t->child_loaded_lock);
+  cond_init (&t->child_exited);
+  lock_init (&t->child_exited_lock);
+
   list_init (&t->lock_list);
   t->blocking_lock = NULL;
   old_level = intr_disable ();
@@ -693,21 +712,6 @@ init_thread (struct thread *t, const char *name, int priority)
     {
       recompute_priority_mlfqs (t, NULL);
     }
-
-  /* Handle child/parent process issues */
-  list_init (&t->children);
-  sema_init (&t->sema, 0);
-  if (t == initial_thread)
-    {
-      t->tid = 0;
-    }
-  else
-    {
-      t->parent_tid = thread_current ()->tid;
-      list_push_back (&thread_current ()->children, &t->child_elem);
-    }
-  t->exit_status = -1; // will be set to 0 when we exit gracefully
-  t->has_been_waited = false;
 
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -849,6 +853,23 @@ thread_lookup (tid_t tid)
       struct thread *t = list_entry (e, struct thread, allelem);
       if (t->tid == tid)
         return t;
+    }
+
+  return NULL;
+}
+
+
+struct child_state *
+thread_child_lookup (struct thread *t, tid_t child_tid)
+{
+  struct list_elem *e;
+
+  for (e = list_begin (&t->children); e != list_end (&t->children);
+       e = list_next (e))
+    {
+      struct child_state *cs = list_entry (e, struct child_state, elem);
+      if (cs->tid == child_tid)
+        return cs;
     }
 
   return NULL;

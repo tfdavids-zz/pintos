@@ -136,6 +136,17 @@ static void sys_exit (struct intr_frame *f, int status)
 {
   f->eax = status;
   thread_current ()->exit_status = status;
+  struct thread *parent = thread_lookup (thread_current ()->parent_tid);
+  if (parent)
+    {
+      struct child_state *cs = thread_child_lookup(parent,
+						   thread_current ()->tid);
+      if (cs)
+	{
+	  cs->exit_status = status;
+	}
+    }
+
   thread_exit ();
 }
 

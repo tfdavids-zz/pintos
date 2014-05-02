@@ -26,6 +26,15 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+struct child_state
+  {
+    struct list_elem elem;              /* List element. */
+    enum thread_status status;          /* Thread state. */
+    int exit_status;                    /* Exit status (if applicable) */
+    tid_t tid;
+    bool has_been_waited;
+  };
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -100,11 +109,18 @@ struct thread
     int nice;                           /* Niceness of thread, for mlfqs */
     fixed_point_t recent_cpu;           /* Recent cpu recieved, for mlfqs */
 
-    struct list_elem child_elem;        /* List element for children */
-    struct list children;               /* Child processes of this process */
-    tid_t parent_tid;                    /* Parent process pid of this process */
+    struct list children;               /* Stores state about threads
+					   spawned by this thread */
+    tid_t parent_tid;                   /* Parent process pid of this
+					   process */
     int exit_status;                    /* Exit status (if applicable) */
-    bool has_been_waited;
+
+    struct condition child_loaded;      /* Child finished loading Waiting thread finished */
+    struct lock child_loaded_lock;      /* A lock for cond child_loaded */
+
+    struct condition child_exited;      /* Child finished running */
+    struct lock child_exited_lock;      /* A lock for waiting_child_finished */
+
     struct semaphore sema;
 
 #ifdef USERPROG
@@ -138,6 +154,7 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 struct thread *thread_lookup (tid_t tid);
+struct child_state * thread_child_lookup (struct thread *t, tid_t child_tid);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
