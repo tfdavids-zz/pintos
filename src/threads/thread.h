@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/fixed-point.h"
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -99,6 +100,13 @@ struct thread
     int nice;                           /* Niceness of thread, for mlfqs */
     fixed_point_t recent_cpu;           /* Recent cpu recieved, for mlfqs */
 
+    struct list_elem child_elem;        /* List element for children */
+    struct list children;               /* Child processes of this process */
+    tid_t parent_tid;                    /* Parent process pid of this process */
+    int exit_status;                    /* Exit status (if applicable) */
+    bool has_been_waited;
+    struct semaphore sema;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -128,6 +136,8 @@ void thread_unblock (struct thread *);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
+
+struct thread *thread_lookup (tid_t tid);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);

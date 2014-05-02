@@ -676,22 +676,40 @@ init_thread (struct thread *t, const char *name, int priority)
   if (thread_mlfqs)
     {
       if (t == initial_thread)
-	{
-	  t->nice = INIT_THREAD_NICE;
-	  t->recent_cpu = fix_int(INIT_RECENT_CPU);
-	}
+    	{
+	      t->nice = INIT_THREAD_NICE;
+	      t->recent_cpu = fix_int(INIT_RECENT_CPU);
+	    }
       else
-	{
-	  t->nice = thread_current ()->nice;
-	  t->recent_cpu = thread_current ()->recent_cpu;
-	}
+	    {
+	      t->nice = thread_current ()->nice;
+	      t->recent_cpu = thread_current ()->recent_cpu;
+	    }
     }
   list_init (&t->lock_list);
   t->blocking_lock = NULL;
   old_level = intr_disable ();
-  if (thread_mlfqs){
-    recompute_priority_mlfqs (t, NULL);
-  }
+  if (thread_mlfqs)
+    {
+      recompute_priority_mlfqs (t, NULL);
+    }
+
+  /* Handle child/parent process issues */
+  list_init (&t->children);
+  sema_init (&t->sema, 0);
+  if (t == initial_thread)
+    {
+      t->tid = 0;
+    }
+  else
+    {
+      t->tid = thread_current ()->tid;
+      list_push_back (&thread_current ()->children, &t->child_elem);
+    }
+  t->exit_status = -1; // will be set to 0 when we exit gracefully
+  t->has_been_waited = false;
+  
+
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
 }
@@ -819,6 +837,22 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+struct thread *
+thread_lookup (tid_t tid)
+{
+  struct list_elem *e;
+
+  for (e = list_begin (&all_list); e != list_end (&all_list);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, allelem);
+      if (t->tid == tid)
+        return t;
+    }
+
+  return NULL;
 }
 
 /* Offset of `stack' member within `struct thread'.

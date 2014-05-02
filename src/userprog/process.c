@@ -47,7 +47,10 @@ process_execute (const char *file_name)
   tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
-  return tid;
+
+  struct thread *child = thread_lookup (tid);
+  sema_down (&child->sema);
+  return tid; // TODO: if error, change it
 }
 
 /* A thread function that loads a user process and starts it
@@ -86,6 +89,8 @@ start_process (void *file_name_)
   if (!success) 
     thread_exit ();
 
+  sema_up(&thread_current ()->sema);
+
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -108,8 +113,20 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  while (true) {} // TODO: implement this
-  return -1;
+  struct thread *child = thread_lookup (child_tid);
+  if (child->has_been_waited)
+    return -1;
+
+  if (child->status == THREAD_DYING)
+    {
+      child->has_been_waited = true;
+      return child->exit_status;
+    }
+
+  sema_down (&child->sema);
+  sema_down (&child->sema);
+
+  return child->exit_status;
 }
 
 /* Free the current process's resources. */
@@ -119,8 +136,10 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  int status = 0; // TODO: figure out status
-  printf ("%s: exit(%d)\n", cur->name, status);
+  cur->exit_status = 0; // TODO: is this okay?
+  printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
+
+  sema_up (&cur->sema); // notify any parent waiting on us
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
