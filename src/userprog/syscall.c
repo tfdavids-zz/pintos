@@ -38,7 +38,6 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  // printf ("system call!\n");
   uint32_t args[MAX_ARGS];
   void *intr_esp = f->esp;
   uint32_t syscall_num = *((uint32_t *)intr_esp);
@@ -48,10 +47,10 @@ syscall_handler (struct intr_frame *f UNUSED)
   for (i = 0; i < arg_num; i++)
     {
       if (!is_valid_ptr (intr_esp))
-	{
-	  /* Terminate process and free resources */
-	}
-      intr_esp += sizeof(uint32_t);
+      {
+        /* Terminate process and free resources */
+      }
+      intr_esp = (uint32_t *)intr_esp + 1;
       args[i] = *((uint32_t *)intr_esp);
     }
 
@@ -63,7 +62,6 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_EXIT:
         sys_exit (f, (int)args[0]);
         break;
-/*
       case SYS_EXEC:
         sys_exec (f, (const char *)args[0]);
       case SYS_WAIT:
@@ -84,11 +82,9 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_READ:
         sys_read (f, (int)args[0], (void *)args[1], (unsigned)args[2]);
         break; 
-*/
       case SYS_WRITE:
         sys_write (f, (int)args[0], (const void *)args[1], (unsigned)args[2]);
         break;
-/*
       case SYS_SEEK:
         sys_seek (f, (int)args[0], (unsigned)args[1]);
         break;
@@ -103,7 +99,6 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_READDIR:
       case SYS_ISDIR:
       case SYS_INUMBER:
-      */
       default:
         /* TODO: Decide what to do in this case. */
         printf ("System call not implemented.\n");
@@ -135,15 +130,43 @@ static void sys_exit (struct intr_frame *f, int status)
   thread_exit ();
 }
 
-static void sys_exec (struct intr_frame *f, const char *file);
-static void sys_wait (struct intr_frame *f, pid_t pid);
+static void sys_exec (struct intr_frame *f, const char *file)
+{
+  ASSERT(false);
+}
+
+static void sys_wait (struct intr_frame *f, pid_t pid)
+{
+  ASSERT(false);
+}
+
 static void sys_create (struct intr_frame *f, const char *file,
-  unsigned initial_size);
-static void sys_remove (struct intr_frame *f, const char *file);
-static void sys_open (struct intr_frame *f, const char *file);
-static void sys_filesize (struct intr_frame *f, int fd);
+  unsigned initial_size)
+{
+  ASSERT(false);
+}
+
+static void sys_remove (struct intr_frame *f, const char *file)
+{
+  ASSERT(false);
+}
+
+static void sys_open (struct intr_frame *f, const char *file)
+{
+  ASSERT(false);
+}
+
+static void sys_filesize (struct intr_frame *f, int fd)
+{
+  ASSERT(false);
+}
+
 static void sys_read (struct intr_frame *f, int fd, void *buffer,
-  unsigned length);
+  unsigned length)
+{
+  ASSERT(false);
+}
+
 
 static void sys_write (struct intr_frame *f, int fd, const void *buffer,
   unsigned length)
@@ -158,6 +181,17 @@ static void sys_write (struct intr_frame *f, int fd, const void *buffer,
   f->eax = length; // TODO: return number of bytes actually written!
 }
 
-static void sys_seek (struct intr_frame *f, int fd, unsigned position);
-static void sys_tell (struct intr_frame *f, int fd);
-static void sys_close (struct intr_frame *f, int fd);
+static void sys_seek (struct intr_frame *f, int fd, unsigned position)
+{
+  ASSERT(false);
+}
+
+static void sys_tell (struct intr_frame *f, int fd)
+{
+  ASSERT(false);
+}
+
+static void sys_close (struct intr_frame *f, int fd)
+{
+  ASSERT(false);
+}
