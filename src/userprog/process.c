@@ -509,7 +509,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
-static void
+static bool
 setup_args (void **esp, const char *file_name, void *aux)
 {
   // TODO: verify that this works
@@ -562,6 +562,8 @@ setup_args (void **esp, const char *file_name, void *aux)
 
   *esp = (void **)*esp - 1;
   *(void **)*esp = NULL;
+
+  return true;
 }
 
 /* Create a minimal stack by mapping a zeroed page at the top of
@@ -579,7 +581,7 @@ setup_stack (void **esp, const char *file_name, void *aux)
       if (success)
         {
           *esp = PHYS_BASE;
-          setup_args(esp, file_name, aux);
+          success = setup_args(esp, file_name, aux);
         }
       else
         {

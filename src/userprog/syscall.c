@@ -42,18 +42,25 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
   uint32_t args[MAX_ARGS];
   void *intr_esp = f->esp;
+  if (!is_valid_ptr (intr_esp))
+    {
+      f->eax = -1;
+      thread_current ()->exit_status = -1;
+      thread_exit ();
+    }
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
   
   int i;
   for (i = 0; i < arg_num; i++)
     {
+      intr_esp = (uint32_t *)intr_esp + 1;
       if (!is_valid_ptr (intr_esp))
       {
-        /* TODO: Terminate process and free resources */
-        ASSERT(false)
+        f->eax = -1;
+        thread_current ()->exit_status = -1;
+        thread_exit ();
       }
-      intr_esp = (uint32_t *)intr_esp + 1;
       args[i] = *((uint32_t *)intr_esp);
     }
 
