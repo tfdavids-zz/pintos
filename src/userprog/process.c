@@ -18,8 +18,11 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+#define FILENAME_MAX_LEN 14
+
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp, void *aux);
+static bool load (const char *cmdline, void (**eip) (void), void **esp,
+  void *aux);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -31,9 +34,10 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  const char process_name[14];
+  /* TODO: What if length of file_name is > FILENAME_MAX_LEN? */
+  const char process_name[FILENAME_MAX_LEN + 1];
   char *pch = strchr (file_name, ' ');
-  int index = pch ? pch - file_name : 14;
+  int index = pch ? pch - file_name : FILENAME_MAX_LEN;
   strlcpy (process_name, file_name, index + 1);
 
   /* Make a copy of FILE_NAME.
@@ -58,22 +62,6 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  char file_name[1024];
-  int i;
-  /* Max file name size = 14 */
-  for (i = 0; i < 14; i++)
-    {
-      if (((char *)file_name_)[i] == ' ')
-        {
-          file_name[i] = '\0';
-          break;
-        } 
-      else
-        {
-          file_name[i] = ((char *)file_name_)[i];
-        }
-    }
-  void *aux = file_name_;
   struct intr_frame if_;
   bool success;
 
@@ -82,7 +70,7 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp, aux);
+  success = load (thread_current ()->name, &if_.eip, &if_.esp, file_name_);
 
   /* If load failed, quit. */
   palloc_free_page (file_name_);
@@ -113,6 +101,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+<<<<<<< HEAD
   struct thread *child = thread_lookup (child_tid);
   if (!child || child->parent_tid != thread_current ()->tid)
     return -1;
@@ -475,39 +464,37 @@ setup_args (void **esp, const char *file_name, void *aux)
 {
   // TODO: verify that this works
 
-  char s[1024]; /* Max arg size = 1KB */
-  char *curr = s;
+  /* TODO: Where is this maximum stated? */
+  char args[1024]; /* Max arg size = 1KB */
+  char *curr = args;
   char *token, *save_ptr;
-  int argc = 0, len = 0;
+  int argc = 0, len = 0, tmp = 0;
 
   for (token = strtok_r ((char *)aux, " ", &save_ptr); token != NULL;
        token = strtok_r (NULL, " ", &save_ptr))
     {
-      strlcpy(curr, token, strlen(token) + 1);
-      len += strlen(token) + 1;
-      curr += strlen(token) + 1;
+      tmp = strlen(token);
+      strlcpy(curr, token, tmp + 1);
+      len += tmp + 1;
+      curr += tmp + 1;
       argc++;
     }
 
-  //printf("*esp = %#x\n", *esp);
-  *esp = *esp - len;
-  //printf("*esp = %#x\n", *esp);
-  memcpy(*esp, s, len);
+  *esp = (char *)*esp - len;
+  memcpy(*esp, args, len);
 
-  // save location of first arg for later
+  /* Remember the location of our first argument. */
   curr = *esp;
 
-  // now round to word
-  *esp -= ((uint32_t) *esp) % sizeof(uint32_t);
-  //printf("*esp = %#x\n", *esp);
+  /* Round esp down to a word size. */
+  *esp = (char *)*esp - ((uintptr_t)*esp) % sizeof(uint32_t);
 
-  // add null pointer
-  *esp = *esp - sizeof(char *);
+  /* Insert NULL sentinel value. */
+  *esp = (char **)*esp - 1;
   *((char **)*esp) = NULL;
-  //printf("*esp = %#x\n", *esp);
 
-  *esp -= argc * sizeof(char *);
-  //printf("*esp = %#x\n", *esp);
+  /* Make room for pointers to arguments. */
+  *esp = (char **)*esp - argc;
   char **argv = *esp;
 
   int i;
@@ -517,16 +504,13 @@ setup_args (void **esp, const char *file_name, void *aux)
       curr += strlen(curr) + 1;
     }
 
-  *esp -= sizeof(char **);
-  //printf("*esp = %#x\n", *esp);
-  *((char **)*esp) = argv;
+  *esp = (char ***)*esp - 1;
+  *((char ***)*esp) = argv;
 
-  *esp -= sizeof(int);
-  //printf("*esp = %#x\n", *esp);
+  *esp = (int *)*esp - 1;
   *(int *)*esp = argc;
 
-  *esp -= sizeof(void *);
-  //printf("*esp = %#x\n", *esp);
+  *esp = (void **)*esp - 1;
   *(void **)*esp = NULL;
 }
 
