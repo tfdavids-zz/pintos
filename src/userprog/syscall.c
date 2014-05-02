@@ -12,8 +12,6 @@
 static uint8_t syscall_arg_num[] =
   {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1};
 
-struct lock filesys_lock;
-
 static void syscall_handler (struct intr_frame *f);
 static void sys_halt (struct intr_frame *f) NO_RETURN;
 static void sys_exit (struct intr_frame *f, int status) NO_RETURN;
@@ -37,7 +35,6 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  lock_init(&filesys_lock);
 }
 
 static void
@@ -151,9 +148,7 @@ static void sys_exec (struct intr_frame *f, const char *file)
       ASSERT(false); 
     }
   
-  lock_acquire(&filesys_lock);
   int tid = process_execute (file);
-  lock_release(&filesys_lock);
   f->eax = tid;
 }
 
