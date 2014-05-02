@@ -42,12 +42,17 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
   uint32_t args[MAX_ARGS];
   void *intr_esp = f->esp;
-  if (!is_valid_ptr (intr_esp))
+  int j;
+  for (j = 0; j < sizeof(uint32_t)/sizeof(char); j++)
     {
-      f->eax = -1;
-      thread_current ()->exit_status = -1;
-      thread_exit ();
+      if (!is_valid_ptr ((char*)intr_esp +j))
+	{
+	  f->eax = -1;
+	  thread_current ()->exit_status = -1;
+	  thread_exit ();
+	}
     }
+
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
   
