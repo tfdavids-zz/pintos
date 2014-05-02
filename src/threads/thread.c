@@ -185,7 +185,7 @@ thread_tick (void)
 
       /* Enforce preemption if thread no longer has highest priority */
       if (!thread_has_highest_priority (t))
-	    intr_yield_on_return ();
+	      intr_yield_on_return ();
     }
   
   if (++thread_ticks >= TIME_SLICE)
