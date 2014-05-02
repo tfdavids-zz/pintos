@@ -32,7 +32,7 @@ static bool is_valid_ptr (void *ptr);
 void
 syscall_init (void) 
 {
-  intr_register_int (0x30, 3, INTR_ON, &syscall_handler, "syscall");
+  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
 static void
@@ -43,6 +43,8 @@ syscall_handler (struct intr_frame *f UNUSED)
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
   
+  printf ("syscall_num = %d\n", syscall_num);
+
   int i;
   for (i = 0; i < arg_num; i++)
     {
@@ -63,8 +65,11 @@ syscall_handler (struct intr_frame *f UNUSED)
         sys_exit (f, (int)args[0]);
         break;
       case SYS_EXEC:
+        printf ("SYS_EXEC %s\n", (const char *)args[0]);
         sys_exec (f, (const char *)args[0]);
+        break;
       case SYS_WAIT:
+        printf ("SYS_WAIT\n");
         sys_wait (f, (pid_t)args[0]);
         break;
       case SYS_CREATE:
@@ -83,6 +88,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         sys_read (f, (int)args[0], (void *)args[1], (unsigned)args[2]);
         break; 
       case SYS_WRITE:
+        printf ("SYS_WRITE\n");
         sys_write (f, (int)args[0], (const void *)args[1], (unsigned)args[2]);
         break;
       case SYS_SEEK:
@@ -138,7 +144,9 @@ static void sys_exec (struct intr_frame *f, const char *file)
 
 static void sys_wait (struct intr_frame *f, pid_t pid)
 {
+  printf ("Waiting . . .\n");
   int status = process_wait (pid);
+  printf ("Waited\n");
   f->eax = status;
 }
 

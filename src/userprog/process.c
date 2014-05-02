@@ -114,8 +114,11 @@ process_wait (tid_t child_tid UNUSED)
       return child->exit_status;
     }
 
+  printf ("Downing sema once\n");
   sema_down (&child->sema);
+  printf ("Downing sema twice\n");
   sema_down (&child->sema);
+  printf ("Successfully downed sema\n");
 
   return child->exit_status;
 }
