@@ -149,17 +149,17 @@ process_wait (tid_t child_tid UNUSED)
    */
 
   lock_acquire (&thread_current ()->child_exited_lock);
-  while (thread_lookup(child_tid) != NULL)
+  while (!cs->has_finished)
     {
       cond_wait (&thread_current ()->child_exited,
 		 &thread_current ()->child_exited_lock);
     }
   lock_release (&thread_current ()->child_exited_lock);
 
-  //sema_down (&child->sema);
-  //sema_down (&child->sema);
-
-  return cs->exit_status;
+  int status = cs->exit_status;
+  list_remove (&cs->elem);
+  free (cs);
+  return status;
 }
 
 /* Free the current process's resources. */
@@ -175,6 +175,8 @@ process_exit (void)
   if (parent)
     {
       lock_acquire (&parent->child_exited_lock);
+      struct child_state *cs = thread_child_lookup (parent, thread_current ()->tid);
+      cs->has_finished = true;
       cond_signal (&parent->child_exited, &parent->child_exited_lock);
       lock_release (&parent->child_exited_lock);
     }
