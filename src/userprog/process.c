@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "userprog/fdtable.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -49,6 +50,8 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
+  struct thread *cur = thread_current ();
+  cur->is_parent = true;
   tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     {
@@ -71,12 +74,13 @@ process_execute (const char *file_name)
 	    &thread_current ()->child_loaded_lock);
     }
   lock_release (&thread_current ()->child_loaded_lock);
-  if (cs->load_success == false)
+
+  if (!cs->load_success)
     {
-      return TID_ERROR;
+      tid = TID_ERROR;
     }
 
-  return tid; // TODO: if error, change it
+  return tid;
 }
 
 /* A thread function that loads a user process and starts it
@@ -95,12 +99,13 @@ start_process (void *file_name_)
   success = load (thread_current ()->name, &if_.eip, &if_.esp, file_name_);
   palloc_free_page (file_name_);
 
-  /* Inform parent of our success */
+  /* Inform parent of our success or lackthereof */
   struct thread *parent = thread_lookup (thread_current ()->parent_tid);
   if (parent)
     {
       lock_acquire (&parent->child_loaded_lock);
-      struct child_state *cs = thread_child_lookup (parent, thread_current ()->tid);
+      struct child_state *cs = thread_child_lookup (parent,
+        thread_current ()->tid);
       cs->has_loaded = true;
       cs->load_success = success;
       cond_signal (&parent->child_loaded, &parent->child_loaded_lock);
@@ -176,13 +181,39 @@ process_exit (void)
   if (parent)
     {
       lock_acquire (&parent->child_exited_lock);
-      struct child_state *cs = thread_child_lookup (parent, thread_current ()->tid);
+      struct child_state *cs = thread_child_lookup (parent,
+        thread_current ()->tid);
       cs->has_finished = true;
       cond_signal (&parent->child_exited, &parent->child_exited_lock);
       lock_release (&parent->child_exited_lock);
     }
 
-  //sema_up (&cur->sema); // notify any parent waiting on us
+  /* Destroy this process' list of children. */
+  struct list_elem *e = list_begin (&cur->children);
+  while (e != list_end (&cur->children))
+    {
+      struct child_state *cs = list_entry (e, struct child_state, elem);
+      e = list_next (e);
+      free (cs);
+    }
+
+  /* Close all open files, including the executable, and free the thread's
+   * name and its fd table. */
+  size_t i;
+  for (i = 0; i <= cur->fd_table_tail_idx; i++)
+    {
+      if (cur->fd_table[i] != NULL)
+      {
+        /* TODO: Can process_exit be invoked from somewhere besides syscall.c?
+         * If so, then we must invoke close through syscall.c (would need to add
+         * another function to syscall.h)
+         */
+        fd_table_close (cur->fd_table[i]);
+      }
+    }
+  free (cur->fd_table);
+  file_close (cur->executable);
+
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -315,6 +346,10 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
       goto done; 
     }
 
+  /* Remember the file and deny writes to it. */
+  t->executable = file;
+  file_deny_write (t->executable);
+
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -397,11 +432,11 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
   success = true;
 
  done:
-  /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  /* We arrive here whether the load is successful or not.
+   * We must keep the file open in order to deny writes to it. */
   return success;
 }
-
+
 /* load() helpers. */
 
 static bool install_page (void *upage, void *kpage, bool writable);

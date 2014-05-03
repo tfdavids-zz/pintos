@@ -25,7 +25,7 @@
 #define NUM_PRIO 64
 #define INIT_THREAD_NICE 0
 #define INIT_RECENT_CPU 0
-#define INIT_FDTABE_SIZE 128
+#define INIT_FDTABE_SIZE 32
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -257,31 +257,35 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  /* Handle child/parent process issues */
-  t->parent_tid = thread_current ()->tid;
-
-  /* Create struct child_state representing this child thread */
-  struct child_state *cs = (struct child_state *)
-    malloc (sizeof (struct child_state));
-  if (cs == NULL)
+  struct thread *cur = thread_current ();
+  if (cur->is_parent)
     {
-      return TID_ERROR;       
-    }
+      /* Handle child/parent process issues */
+      t->parent_tid = cur->tid;
 
-  cs->exit_status = -1; // will be set to 0 when we exit gracefully
-  cs->tid = tid;
-  cs->has_loaded = false;
-  cs->has_finished = false;
-  list_push_back (&thread_current ()->children, &cs->elem);
+      /* Create struct child_state representing this child thread */
+      struct child_state *cs = (struct child_state *)
+        malloc (sizeof (struct child_state));
+      if (cs == NULL)
+        {
+          return TID_ERROR;       
+        }
 
-  /* Set up the file descriptor table. */
-  t->fd_table_size = INIT_FDTABE_SIZE;
-  t->fd_table = calloc (t->fd_table_size, sizeof (struct file *));
-  if (t->fd_table == NULL)
-    {
-      return TID_ERROR;
+      cs->exit_status = -1; // will be set to 0 when we exit gracefully
+      cs->tid = tid;
+      cs->has_loaded = false;
+      cs->has_finished = false;
+      list_push_back (&cur->children, &cs->elem);
+
+      /* Set up the file descriptor table. */
+      t->fd_table_size = INIT_FDTABE_SIZE;
+      t->fd_table = calloc (t->fd_table_size, sizeof (struct file *));
+      if (t->fd_table == NULL)
+        {
+          return TID_ERROR;
+        }
+      t->fd_table_tail_idx = 1;
     }
-  t->fd_table_tail_idx = 1;
 
   /* Yield current thread if not highest. */
   enum intr_level old_level = intr_disable ();
@@ -373,22 +377,6 @@ thread_exit (void)
 #ifdef USERPROG
   process_exit ();
 #endif
-
-  /* Clean up all allocated memory */
-  struct thread *t = thread_current ();
-  struct list_elem *e;
-  for (e = list_begin (&t->children); e != list_end (&t->children);
-       e = list_next (e))
-    {
-      struct child_state *cs = list_entry (e, struct child_state, elem);
-      free (cs);
-    }
-  size_t i;
-  for (i = 0; i <= t->fd_table_tail_idx; i++)
-    {
-      free (t->fd_table[i]);
-    }
-  free (t->fd_table);
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
@@ -717,6 +705,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
+  t->is_parent = false;
   if (thread_mlfqs)
     {
       if (t == initial_thread)

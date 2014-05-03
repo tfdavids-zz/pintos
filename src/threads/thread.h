@@ -99,6 +99,7 @@ struct thread
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
+    struct file *executable;            /* File that spawned this thread. */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     int eff_priority;                   /* Priority (with donation)*/
@@ -124,8 +125,9 @@ struct thread
 
     struct condition child_exited;      /* Child finished running */
     struct lock child_exited_lock;      /* A lock for waiting_child_finished */
+    bool is_parent;
 
-    struct semaphore sema;
+    struct semaphore sema; /* TODO: Delete this? */
  
     /* State for managing file descriptors. */
     struct file **fd_table;
