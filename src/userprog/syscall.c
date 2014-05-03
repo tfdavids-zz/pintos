@@ -1,10 +1,14 @@
 #include "userprog/syscall.h"
+#include "userprog/pagedir.h"
+#include "userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "lib/user/syscall.h"
+#include "devices/shutdown.h"
+
 /* TODO: Is it appropriate for the kernel to include header files designed
  * for user-land? */
 
@@ -29,9 +33,20 @@ static void sys_write (struct intr_frame *f, int fd, const void *buffer,
 static void sys_seek (struct intr_frame *f, int fd, unsigned position);
 static void sys_tell (struct intr_frame *f, int fd);
 static void sys_close (struct intr_frame *f, int fd);
-static bool is_valid_ptr (void *ptr);
-static bool is_valid_range (void *ptr, size_t len);
-static bool is_valid_string (void *ptr);
+static bool is_valid_ptr (const void *ptr);
+static bool is_valid_range (const void *ptr, size_t len);
+static bool is_valid_string (const char *ptr);
+static inline void bug_on (struct intr_frame *f, bool condition);
+
+static inline void bug_on (struct intr_frame *f, bool condition)
+{
+  if (condition)
+  {
+    f->eax = -1;
+    thread_current ()->exit_status = -1;
+    thread_exit ();
+  }
+}
 
 void
 syscall_init (void) 
@@ -44,17 +59,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
   uint32_t args[MAX_ARGS];
   void *intr_esp = f->esp;
-  int j;
-  for (j = 0; j < sizeof(uint32_t)/sizeof(char); j++)
-    {
-      if (!is_valid_ptr ((char*)intr_esp +j))
-    	{
-    	  f->eax = -1;
-    	  thread_current ()->exit_status = -1;
-    	  thread_exit ();
-	    }
-    }
 
+  bug_on (f, !is_valid_range (intr_esp, sizeof (uint32_t)));
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
   
@@ -62,12 +68,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   for (i = 0; i < arg_num; i++)
     {
       intr_esp = (uint32_t *)intr_esp + 1;
-      if (!is_valid_range (intr_esp, sizeof (uint32_t)))
-      {
-        f->eax = -1;
-        thread_current ()->exit_status = -1;
-        thread_exit ();
-      }
+      bug_on (f, !is_valid_range (intr_esp, sizeof (uint32_t)));
       args[i] = *((uint32_t *)intr_esp);
     }
 
@@ -123,50 +124,40 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 }
 
-static bool is_valid_ptr (void *ptr)
+static bool is_valid_ptr (const void *ptr)
 {
-  /* If null or invalid addr return false */
-  if (ptr == NULL || !is_user_vaddr (ptr))
-    {
-      return false;
-    }
-
-  /* If virtual address is unmapped return false */
-  if (pagedir_get_page (thread_current ()->pagedir, ptr) == NULL)
-    {
-      return false;
-    }
-
-  return true;
+  return (ptr != NULL) &&
+    (is_user_vaddr(ptr)) &&
+    (pagedir_get_page (thread_current ()->pagedir, ptr) != NULL);
 }
 
-static bool is_valid_range (void *ptr, size_t len)
+static bool is_valid_range (const void *ptr, size_t len)
 {
-  int i;
+  size_t i;
   for (i = 0; i < len; i++)
     {
-      if (!is_valid_ptr((char *)ptr + i))
+      if (!is_valid_ptr((uint8_t *)ptr + i))
         return false;
     }
 
   return true;
 }
 
-static bool is_valid_string (void *ptr)
+static bool is_valid_string (const char *str)
 {
-  if (!is_valid_ptr (ptr))
-    return false;
-
-  int i = 0;
-  while (true)
+  if (!is_valid_ptr (str))
     {
-      if (!is_valid_ptr((char *)ptr + i))
-        return false;
-      if (*((char *)ptr + i) == '\0')
-        break;
-      i++;
+      return false;
     }
 
+  while (*str != '\0')
+    {
+      str++;
+      if (!is_valid_ptr(str))
+        {
+          return false;
+        }
+    }
   return true;
 }
 
@@ -186,9 +177,9 @@ static void sys_exit (struct intr_frame *f, int status)
       struct child_state *cs = thread_child_lookup(parent,
 						   thread_current ()->tid);
       if (cs)
-	{
-	  cs->exit_status = status;
-	}
+        {
+          cs->exit_status = status;
+        }
     }
 
   thread_exit ();
@@ -196,15 +187,7 @@ static void sys_exit (struct intr_frame *f, int status)
 
 static void sys_exec (struct intr_frame *f, const char *file)
 {
-  /* TODO: We need to evaluate every pointer from file to
-   * file + strlen(file) ... */
-  if (!is_valid_string(file))
-    {
-      f->eax = -1;
-      thread_current ()->exit_status = -1;
-      thread_exit ();
-    }
-  
+  bug_on (f, !is_valid_string(file));
   int tid = process_execute (file);
   f->eax = tid;
 }
@@ -245,6 +228,7 @@ static void sys_read (struct intr_frame *f, int fd, void *buffer,
 static void sys_write (struct intr_frame *f, int fd, const void *buffer,
   unsigned length)
 {
+  bug_on (f, !is_valid_range (buffer, length));
   if (fd != 1)
     {
       printf ("Writing to anything other than fd 1 not implemented.\n");
