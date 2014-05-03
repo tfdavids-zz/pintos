@@ -6,6 +6,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 #include "lib/user/syscall.h"
 #include "devices/shutdown.h"
 
@@ -15,6 +16,8 @@
 #define MAX_ARGS 3
 static uint8_t syscall_arg_num[] =
   {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1};
+
+struct lock filesys_lock;
 
 static void syscall_handler (struct intr_frame *f);
 static void sys_halt (struct intr_frame *f) NO_RETURN;
@@ -52,6 +55,7 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init (&filesys_lock);
 }
 
 static void
@@ -221,24 +225,29 @@ static void sys_filesize (struct intr_frame *f, int fd)
   ASSERT(false);
 }
 
-/* TODO: access_ok */
 static void sys_read (struct intr_frame *f, int fd, void *buffer,
   unsigned length)
 {
-  ASSERT(false);
+  bug_on (f, fd == STDOUT_FILENO);
+  /* TODO: Remove assert */
+  ASSERT (fd == STDIN_FILENO);
+  bug_on (f, !is_valid_range (buffer, length));
+  int i;
+  for (i = 0; i < length; i++)
+    {
+      ((uint8_t *)buffer)[i] = input_getc();
+    }
+  return length; /* TODO: return number of bytes actually read! */
+  
 }
 
 
-/* TODO: access_ok */
 static void sys_write (struct intr_frame *f, int fd, const void *buffer,
   unsigned length)
 {
+  /* TODO: Remove assert */
+  ASSERT (fd == STDOUT_FILENO);
   bug_on (f, !is_valid_range (buffer, length));
-  if (fd != 1)
-    {
-      printf ("Writing to anything other than fd 1 not implemented.\n");
-      return;
-    }
   putbuf (buffer, length);
   f->eax = length; // TODO: return number of bytes actually written!
 }

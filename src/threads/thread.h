@@ -111,19 +111,26 @@ struct thread
     int nice;                           /* Niceness of thread, for mlfqs */
     fixed_point_t recent_cpu;           /* Recent cpu recieved, for mlfqs */
 
+    /* State for managing children. */
     struct list children;               /* Stores state about threads
-					   spawned by this thread */
+					                               * spawned by this thread */
     struct thread *parent;
     tid_t parent_tid;                   /* Parent process pid of this process */
     int exit_status;                    /* Exit status (if applicable) */
 
-    struct condition child_loaded;      /* Child finished loading Waiting thread finished */
+    struct condition child_loaded;      /* Child finished loading Waiting thread
+                                         * finished */
     struct lock child_loaded_lock;      /* A lock for cond child_loaded */
 
     struct condition child_exited;      /* Child finished running */
     struct lock child_exited_lock;      /* A lock for waiting_child_finished */
 
     struct semaphore sema;
+ 
+    /* State for managing file descriptors. */
+    struct file **fd_table;
+    size_t fd_table_size;
+    size_t fd_table_tail_idx; /* Highest unused fd. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
