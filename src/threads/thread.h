@@ -130,7 +130,7 @@ struct thread
     /* State for managing file descriptors. */
     struct file **fd_table;
     size_t fd_table_size;
-    size_t fd_table_tail_idx; /* Highest unused fd. */
+    size_t fd_table_tail_idx; /* Highest used fd. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

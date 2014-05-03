@@ -281,7 +281,7 @@ thread_create (const char *name, int priority,
     {
       return TID_ERROR;
     }
-   t->fd_table_tail_idx = 2;
+  t->fd_table_tail_idx = 1;
 
   /* Yield current thread if not highest. */
   enum intr_level old_level = intr_disable ();
@@ -373,6 +373,22 @@ thread_exit (void)
 #ifdef USERPROG
   process_exit ();
 #endif
+
+  /* Clean up all allocated memory */
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  for (e = list_begin (&t->children); e != list_end (&t->children);
+       e = list_next (e))
+    {
+      struct child_state *cs = list_entry (e, struct child_state, elem);
+      free (cs);
+    }
+  size_t i;
+  for (i = 0; i <= t->fd_table_tail_idx; i++)
+    {
+      free (t->fd_table[i]);
+    }
+  free (t->fd_table);
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
