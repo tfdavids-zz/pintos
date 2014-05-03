@@ -20,7 +20,7 @@ static uint8_t syscall_arg_num[] =
 struct lock filesys_lock;
 
 static void syscall_handler (struct intr_frame *f);
-static void sys_halt (struct intr_frame *f) NO_RETURN;
+static void sys_halt (void) NO_RETURN;
 static void sys_exit (struct intr_frame *f, int status) NO_RETURN;
 static void sys_exec (struct intr_frame *f, const char *file);
 static void sys_wait (struct intr_frame *f, pid_t pid);
@@ -79,7 +79,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   switch (syscall_num)
     {
       case SYS_HALT:
-        sys_halt (f);
+        sys_halt ();
         break;
       case SYS_EXIT:
         sys_exit (f, (int)args[0]);
@@ -166,7 +166,7 @@ static bool is_valid_string (const char *str)
 }
 
 /* TODO: Validate user memory. */
-static void sys_halt (struct intr_frame *f)
+static void sys_halt (void)
 {
   shutdown_power_off ();
 }
@@ -205,7 +205,10 @@ static void sys_wait (struct intr_frame *f, pid_t pid)
 static void sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size)
 {
-  ASSERT(false);
+  bug_on (f, !is_valid_string (file));
+  lock_acquire (&filesys_lock);
+  f->eax = filesys_create (file, initial_size);
+  lock_release (&filesys_lock);
 }
 
 /* TODO: access_ok */
