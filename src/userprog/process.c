@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 #define FILENAME_MAX_LEN 14
 
@@ -35,7 +36,7 @@ process_execute (const char *file_name)
   tid_t tid;
 
   /* TODO: What if length of file_name is > FILENAME_MAX_LEN? */
-  const char process_name[FILENAME_MAX_LEN + 1]; // TODO: fix warning about this not being constant
+  char process_name[FILENAME_MAX_LEN + 1]; // TODO: fix warning about this not being constant
   char *pch = strchr (file_name, ' ');
   int index = pch ? pch - file_name : FILENAME_MAX_LEN;
   strlcpy (process_name, file_name, index + 1);
@@ -280,7 +281,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp, const char *file_name, void *aux);
+static bool setup_stack (void **esp, void *aux);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -387,7 +388,7 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp, file_name, aux))
+  if (!setup_stack (esp, aux))
     goto done;
 
   /* Start address. */
@@ -510,7 +511,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 static bool
-setup_args (void **esp, const char *file_name, void *aux)
+setup_args (void **esp, void *aux)
 {
   // TODO: verify that this works
 
@@ -569,7 +570,7 @@ setup_args (void **esp, const char *file_name, void *aux)
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp, const char *file_name, void *aux) 
+setup_stack (void **esp, void *aux) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -581,7 +582,7 @@ setup_stack (void **esp, const char *file_name, void *aux)
       if (success)
         {
           *esp = PHYS_BASE;
-          success = setup_args(esp, file_name, aux);
+          success = setup_args(esp, aux);
         }
       else
         {
