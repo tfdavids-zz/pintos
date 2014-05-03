@@ -194,6 +194,7 @@ static void sys_exit (struct intr_frame *f, int status)
   thread_exit ();
 }
 
+/* TODO: access_ok */
 static void sys_exec (struct intr_frame *f, const char *file)
 {
   /* TODO: We need to evaluate every pointer from file to
@@ -214,17 +215,20 @@ static void sys_wait (struct intr_frame *f, pid_t pid)
   f->eax = process_wait (pid);
 }
 
+/* TODO: access_ok */
 static void sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size)
 {
   ASSERT(false);
 }
 
+/* TODO: access_ok */
 static void sys_remove (struct intr_frame *f, const char *file)
 {
   ASSERT(false);
 }
 
+/* TODO: access_ok */
 static void sys_open (struct intr_frame *f, const char *file)
 {
   ASSERT(false);
@@ -235,6 +239,7 @@ static void sys_filesize (struct intr_frame *f, int fd)
   ASSERT(false);
 }
 
+/* TODO: access_ok */
 static void sys_read (struct intr_frame *f, int fd, void *buffer,
   unsigned length)
 {
@@ -242,6 +247,7 @@ static void sys_read (struct intr_frame *f, int fd, void *buffer,
 }
 
 
+/* TODO: access_ok */
 static void sys_write (struct intr_frame *f, int fd, const void *buffer,
   unsigned length)
 {
