@@ -30,6 +30,8 @@ static void sys_seek (struct intr_frame *f, int fd, unsigned position);
 static void sys_tell (struct intr_frame *f, int fd);
 static void sys_close (struct intr_frame *f, int fd);
 static bool is_valid_ptr (void *ptr);
+static bool is_valid_range (void *ptr, size_t len);
+static bool is_valid_string (void *ptr);
 
 void
 syscall_init (void) 
@@ -46,11 +48,11 @@ syscall_handler (struct intr_frame *f UNUSED)
   for (j = 0; j < sizeof(uint32_t)/sizeof(char); j++)
     {
       if (!is_valid_ptr ((char*)intr_esp +j))
-	{
-	  f->eax = -1;
-	  thread_current ()->exit_status = -1;
-	  thread_exit ();
-	}
+    	{
+    	  f->eax = -1;
+    	  thread_current ()->exit_status = -1;
+    	  thread_exit ();
+	    }
     }
 
   uint32_t syscall_num = *((uint32_t *)intr_esp);
@@ -60,7 +62,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   for (i = 0; i < arg_num; i++)
     {
       intr_esp = (uint32_t *)intr_esp + 1;
-      if (!is_valid_ptr (intr_esp))
+      if (!is_valid_range (intr_esp, sizeof (uint32_t)))
       {
         f->eax = -1;
         thread_current ()->exit_status = -1;
@@ -138,6 +140,36 @@ static bool is_valid_ptr (void *ptr)
   return true;
 }
 
+static bool is_valid_range (void *ptr, size_t len)
+{
+  int i;
+  for (i = 0; i < len; i++)
+    {
+      if (!is_valid_ptr((char *)ptr + i))
+        return false;
+    }
+
+  return true;
+}
+
+static bool is_valid_string (void *ptr)
+{
+  if (!is_valid_ptr (ptr))
+    return false;
+
+  int i = 0;
+  while (true)
+    {
+      if (!is_valid_ptr((char *)ptr + i))
+        return false;
+      if (*((char *)ptr + i) == '\0')
+        break;
+      i++;
+    }
+
+  return true;
+}
+
 /* TODO: Validate user memory. */
 static void sys_halt (struct intr_frame *f)
 {
@@ -166,9 +198,11 @@ static void sys_exec (struct intr_frame *f, const char *file)
 {
   /* TODO: We need to evaluate every pointer from file to
    * file + strlen(file) ... */
-  if (!is_valid_ptr(file) || !is_valid_ptr(file + strlen(file)))
+  if (!is_valid_string(file))
     {
-      ASSERT(false); 
+      f->eax = -1;
+      thread_current ()->exit_status = -1;
+      thread_exit ();
     }
   
   int tid = process_execute (file);
