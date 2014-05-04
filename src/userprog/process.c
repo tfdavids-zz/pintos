@@ -208,7 +208,7 @@ process_exit (void)
          * If so, then we must invoke close through syscall.c (would need to add
          * another function to syscall.h)
          */
-        fd_table_close (cur->fd_table[i]);
+        fd_table_close (i);
       }
     }
   free (cur->fd_table);
