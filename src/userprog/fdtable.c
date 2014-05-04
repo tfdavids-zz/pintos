@@ -41,7 +41,10 @@ fd_table_open (const char *file)
     }
 
   /* expand the table and return the next slot. */
-  expand_table ();
+  if (!expand_table ())
+    {
+      return -1;
+    }
   fd = t->fd_table_tail_idx + 1;
   t->fd_table_tail_idx++;
   t->fd_table[fd] = f;
@@ -96,7 +99,7 @@ static int
 find_unused_fd (void)
 {
   struct thread *t = thread_current ();
-  if (t->fd_table_tail_idx < t->fd_table_size - 1)
+  if (t->fd_table_tail_idx < (t->fd_table_size - 1))
     {
       return t->fd_table_tail_idx + 1;
     }

@@ -67,14 +67,14 @@ process_execute (const char *file_name)
       return TID_ERROR;
     }
 
-  lock_acquire (&thread_current ()->child_loaded_lock);
-  while (!cs->has_loaded)
+  struct thread *t = thread_lookup (tid);
+  if (t)
     {
-      cond_wait (&thread_current ()->child_loaded,
-	    &thread_current ()->child_loaded_lock);
+      while (!cs->has_loaded)
+        {
+          sema_down (&t->sema);
+        }
     }
-  lock_release (&thread_current ()->child_loaded_lock);
-
   if (!cs->load_success)
     {
       tid = TID_ERROR;
@@ -99,18 +99,21 @@ start_process (void *file_name_)
   success = load (thread_current ()->name, &if_.eip, &if_.esp, file_name_);
   palloc_free_page (file_name_);
 
-  /* Inform parent of our success or lackthereof */
+  enum intr_level old_level = intr_disable ();
+
+  /* Inform parent of our success or lackthereof*/
+
   struct thread *parent = thread_lookup (thread_current ()->parent_tid);
   if (parent)
     {
-      lock_acquire (&parent->child_loaded_lock);
       struct child_state *cs = thread_child_lookup (parent,
-        thread_current ()->tid);
+                                                    thread_current ()->tid);
       cs->has_loaded = true;
       cs->load_success = success;
-      cond_signal (&parent->child_loaded, &parent->child_loaded_lock);
-      lock_release (&parent->child_loaded_lock);
+
     }
+  intr_set_level (old_level);
+  sema_up (&thread_current ()->sema);
 
   /* If load failed, quit. */
   if (!success) 
@@ -154,13 +157,14 @@ process_wait (tid_t child_tid UNUSED)
    * or b) child->exit_status.
    */
 
-  lock_acquire (&thread_current ()->child_exited_lock);
-  while (!cs->has_finished)
+  struct thread *t = thread_lookup (child_tid);
+  if (t)
     {
-      cond_wait (&thread_current ()->child_exited,
-		 &thread_current ()->child_exited_lock);
+      while (!cs->has_finished)
+        {
+          sema_down (&t->sema);
+        }
     }
-  lock_release (&thread_current ()->child_exited_lock);
 
   int status = cs->exit_status;
   list_remove (&cs->elem);
@@ -177,16 +181,17 @@ process_exit (void)
 
   printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
 
+  enum intr_level old_level = intr_disable ();
+
   struct thread *parent = thread_lookup (thread_current ()->parent_tid);
   if (parent)
     {
-      lock_acquire (&parent->child_exited_lock);
       struct child_state *cs = thread_child_lookup (parent,
         thread_current ()->tid);
       cs->has_finished = true;
-      cond_signal (&parent->child_exited, &parent->child_exited_lock);
-      lock_release (&parent->child_exited_lock);
     }
+  sema_up (&thread_current ()->sema);
+  intr_set_level (old_level);
 
   /* Destroy this process' list of children. */
   struct list_elem *e = list_begin (&cur->children);
@@ -425,7 +430,6 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
   /* Set up stack. */
   if (!setup_stack (esp, aux))
     goto done;
-
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
 
@@ -619,7 +623,7 @@ setup_stack (void **esp, void *aux)
           *esp = PHYS_BASE;
           success = setup_args(esp, aux);
         }
-      else
+      if (!success)
         {
           palloc_free_page (kpage);
         }
