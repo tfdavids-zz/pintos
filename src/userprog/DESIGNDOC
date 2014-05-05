@@ -1,5 +1,5 @@
              +--------------------------+
-             | CS 140                     |
+             | CS 140                   |
              | PROJECT 2: USER PROGRAMS |
              | DESIGN DOCUMENT          |
              +--------------------------+
@@ -36,13 +36,42 @@ Robert Gasparyan <robertga@stanford.edu>
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
 
+Argument passing was implemented by passing a new parameter, void *aux, to the
+function load(), which loads a new process in memory. The first input to
+load(), const char *cmdline, is the name of the function being called (without
+arguments), and the last input, void *aux, is the full name, including
+arguments. This string is parsed in the function setup_args(), which decrements
+the stack pointer as much as necessary to set up the stack properly. We ensure
+that the elements of argv[] are in the right order by initializing argv[] at
+the proper location on the stack, and then reading the addresses of the
+arguments, which are already on the stack, to populate argv[]. We avoid
+overflowing the stack page by limiting the length of the args[] array to one
+page.
+
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
 
+strtok_r() is the reentrant version of strtok(). If a timer interrupt occurred
+while we were parsing the arguments, strtok()'s output could be corrupted;
+however, strtok_r() will still return the correct output.
+
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
+
+In the Pintos approach, we allocate an entirely new page for the copy of the
+command string, which is then freed when the new thread is loaded. Separating
+the command in the shell would avoid the need to do this, since we would not
+need a copy of the command for the arguments.
+
+The Unix approach also has the advantage that it knows earlier which command is
+actually called. In the Pintos approach, we just take the command as a raw
+string all the way back to the kernel, which could cause problems if it has an
+incorrect number of arguments, for example. However, if we were to follow the
+Unix approach and parse the command and arguments in the shell, we could check
+earlier for a possible error in the command, or for something more sinister
+such as a security attack.
 
                  SYSTEM CALLS
                  ============
