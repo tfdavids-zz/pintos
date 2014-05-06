@@ -1,5 +1,5 @@
 #ifndef USERPROG_FDTABLE_H
-#define USERPROG_FDTABE_H
+#define USERPROG_FDTABLE_H
 
 #include "filesys/file.h"
 

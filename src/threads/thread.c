@@ -257,8 +257,11 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+/* Only (non-idle) user processes need access to store child state and
+   file descriptors. */
+#ifdef USERPROG
   struct thread *cur = thread_current ();
-  if (cur->is_parent)
+  if (function != idle)
     {
       /* Handle child/parent process issues */
       t->parent_tid = cur->tid;
@@ -271,10 +274,10 @@ thread_create (const char *name, int priority,
           return TID_ERROR;       
         }
 
-      cs->exit_status = -1; // will be set to 0 when we exit gracefully
+      cs->exit_status = -1; /* By default, assume error. */
       cs->tid = tid;
-      cs->has_loaded = false;
-      cs->has_finished = false;
+      cs->load_success = false;
+      sema_init (&cs->sema, 0);
       list_push_back (&cur->children, &cs->elem);
 
       /* Set up the file descriptor table. */
@@ -286,6 +289,7 @@ thread_create (const char *name, int priority,
         }
       t->fd_table_tail_idx = 1;
     }
+#endif
 
   /* Yield current thread if not highest. */
   enum intr_level old_level = intr_disable ();
@@ -604,7 +608,7 @@ recompute_load_avg_mlfqs (void)
   if (idle_thread->status == THREAD_READY)
     ready_threads--;
   
-  if(thread_current () != idle_thread)
+  if (thread_current () != idle_thread)
     ready_threads++;
 
   load_avg = fix_add (
@@ -705,7 +709,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
-  t->is_parent = false;
+  t->exit_status - 1; /* By default, assume error. */
   if (thread_mlfqs)
     {
       if (t == initial_thread)
@@ -721,12 +725,6 @@ init_thread (struct thread *t, const char *name, int priority)
     }
 
   list_init (&t->children);
-  sema_init (&t->sema, 0);
-  cond_init (&t->child_loaded);
-  lock_init (&t->child_loaded_lock);
-  cond_init (&t->child_exited);
-  lock_init (&t->child_exited_lock);
-
   list_init (&t->lock_list);
   t->blocking_lock = NULL;
   old_level = intr_disable ();
@@ -864,28 +862,32 @@ allocate_tid (void)
   return tid;
 }
 
+/* Returns the thread whose tid matches the supplied tid, or NULL
+   if no such thread exists. This function must be called with
+   interrupts disabled. */
 struct thread *
 thread_lookup (tid_t tid)
 {
-  struct list_elem *e;
+  ASSERT (intr_get_level () == INTR_OFF);
 
+  struct thread *t = NULL;
+  struct list_elem *e;
   for (e = list_begin (&all_list); e != list_end (&all_list);
        e = list_next (e))
     {
-      struct thread *t = list_entry (e, struct thread, allelem);
+      t = list_entry (e, struct thread, allelem);
       if (t->tid == tid)
-        return t;
+        {
+          break;
+        }
     }
-
-  return NULL;
+  return t;
 }
-
 
 struct child_state *
 thread_child_lookup (struct thread *t, tid_t child_tid)
 {
   struct list_elem *e;
-
   for (e = list_begin (&t->children); e != list_end (&t->children);
        e = list_next (e))
     {
@@ -893,7 +895,6 @@ thread_child_lookup (struct thread *t, tid_t child_tid)
       if (cs->tid == child_tid)
         return cs;
     }
-
   return NULL;
 }
 

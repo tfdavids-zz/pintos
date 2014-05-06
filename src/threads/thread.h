@@ -30,11 +30,9 @@ struct child_state
   {
     struct list_elem elem;              /* List element. */
     int exit_status;                    /* Exit status (if applicable) */
-    tid_t tid;
-    bool has_loaded;
-    bool load_success;
-    bool has_finished;
-    struct thread *child;
+    tid_t tid;                          /* tid of child. */
+    bool load_success;                  /* True if child loaded successfully*/
+    struct semaphore sema;              /* For synch between parent/child */
   };
 
 /* A kernel thread or user process.
@@ -114,25 +112,14 @@ struct thread
 
     /* State for managing children. */
     struct list children;               /* Stores state about threads
-					                               * spawned by this thread */
-    struct thread *parent;
+                                         * spawned by this thread */
     tid_t parent_tid;                   /* Parent process pid of this process */
     int exit_status;                    /* Exit status (if applicable) */
-
-    struct condition child_loaded;      /* Child finished loading Waiting thread
-                                         * finished */
-    struct lock child_loaded_lock;      /* A lock for cond child_loaded */
-
-    struct condition child_exited;      /* Child finished running */
-    struct lock child_exited_lock;      /* A lock for waiting_child_finished */
-    bool is_parent;
-
-    struct semaphore sema; /* TODO: Delete this? */
  
     /* State for managing file descriptors. */
-    struct file **fd_table;
-    size_t fd_table_size;
-    size_t fd_table_tail_idx; /* Highest used fd. */
+    struct file **fd_table;           /* The table of file descriptors. */
+    size_t fd_table_size;             /* The size of the table. */
+    size_t fd_table_tail_idx;         /* Highest used fd. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -165,7 +152,7 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 struct thread *thread_lookup (tid_t tid);
-struct child_state * thread_child_lookup (struct thread *t, tid_t child_tid);
+struct child_state *thread_child_lookup (struct thread *t, tid_t child_tid);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
