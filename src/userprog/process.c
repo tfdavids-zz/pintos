@@ -37,7 +37,7 @@ process_execute (const char *file_name)
   tid_t tid;
 
   /* TODO: What if length of file_name is > FILENAME_MAX_LEN? */
-  char process_name[FILENAME_MAX_LEN + 1]; // TODO: fix warning about this not being constant
+  char process_name[FILENAME_MAX_LEN + 1];
   char *pch = strchr (file_name, ' ');
   int index = pch ? pch - file_name : FILENAME_MAX_LEN;
   strlcpy (process_name, file_name, index + 1);
@@ -46,10 +46,12 @@ process_execute (const char *file_name)
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
-    return TID_ERROR;
+    {
+      return TID_ERROR;
+    }
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  /* Create a new thread to execute FILE_NAME. */
+  /* Create a new thread to execute file_name. */
   struct thread *cur = thread_current ();
   cur->is_parent = true;
   tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
@@ -63,17 +65,15 @@ process_execute (const char *file_name)
   struct child_state *cs = thread_child_lookup (thread_current (), tid);
   if (!cs)
     {
-      palloc_free_page (fn_copy); // TODO: is this necessary? find out where this is normally freed
+      palloc_free_page (fn_copy);
       return TID_ERROR;
     }
 
+  /* TODO: Race. */
   struct thread *t = thread_lookup (tid);
   if (t)
     {
-      while (!cs->has_loaded)
-        {
-          sema_down (&t->sema);
-        }
+      sema_down (&t->sema);
     }
   if (!cs->load_success)
     {
@@ -108,9 +108,7 @@ start_process (void *file_name_)
     {
       struct child_state *cs = thread_child_lookup (parent,
                                                     thread_current ()->tid);
-      cs->has_loaded = true;
       cs->load_success = success;
-
     }
   intr_set_level (old_level);
   sema_up (&thread_current ()->sema);
@@ -160,10 +158,7 @@ process_wait (tid_t child_tid UNUSED)
   struct thread *t = thread_lookup (child_tid);
   if (t)
     {
-      while (!cs->has_finished)
-        {
-          sema_down (&t->sema);
-        }
+      sema_down (&t->sema);
     }
 
   int status = cs->exit_status;
