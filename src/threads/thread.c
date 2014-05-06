@@ -257,8 +257,11 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+/* Only (non-idle) user processes need access to store child state and
+   file descriptors. */
+#ifdef USERPROG
   struct thread *cur = thread_current ();
-  if (cur->is_parent)
+  if (function != idle)
     {
       /* Handle child/parent process issues */
       t->parent_tid = cur->tid;
@@ -285,6 +288,7 @@ thread_create (const char *name, int priority,
         }
       t->fd_table_tail_idx = 1;
     }
+#endif
 
   /* Yield current thread if not highest. */
   enum intr_level old_level = intr_disable ();
@@ -603,7 +607,7 @@ recompute_load_avg_mlfqs (void)
   if (idle_thread->status == THREAD_READY)
     ready_threads--;
   
-  if(thread_current () != idle_thread)
+  if (thread_current () != idle_thread)
     ready_threads++;
 
   load_avg = fix_add (
@@ -704,7 +708,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
-  t->is_parent = false;
   t->exit_status - 1; /* By default, assume error. */
   if (thread_mlfqs)
     {

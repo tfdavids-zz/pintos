@@ -116,8 +116,6 @@ struct thread
                                          * spawned by this thread */
     tid_t parent_tid;                   /* Parent process pid of this process */
     int exit_status;                    /* Exit status (if applicable) */
-    bool is_parent;                     /* Whether this process is a user
-                                           process. */
  
     /* State for managing file descriptors. */
     struct file **fd_table;           /* The table of file descriptors. */

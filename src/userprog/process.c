@@ -52,7 +52,6 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute file_name. */
   struct thread *cur = thread_current ();
-  cur->is_parent = true;
   tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     {
