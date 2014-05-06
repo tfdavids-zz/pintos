@@ -113,15 +113,15 @@ struct thread
     /* State for managing children. */
     struct list children;               /* Stores state about threads
                                          * spawned by this thread */
-    struct thread *parent;
     tid_t parent_tid;                   /* Parent process pid of this process */
     int exit_status;                    /* Exit status (if applicable) */
-    bool is_parent;
+    bool is_parent;                     /* Whether this process is a user
+                                           process. */
  
     /* State for managing file descriptors. */
-    struct file **fd_table;
-    size_t fd_table_size;
-    size_t fd_table_tail_idx; /* Highest used fd. */
+    struct file **fd_table;           /* The table of file descriptors. */
+    size_t fd_table_size;             /* The size of the table. */
+    size_t fd_table_tail_idx;         /* Highest used fd. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -154,7 +154,7 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 struct thread *thread_lookup (tid_t tid);
-struct child_state * thread_child_lookup (struct thread *t, tid_t child_tid);
+struct child_state *thread_child_lookup (struct thread *t, tid_t child_tid);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
