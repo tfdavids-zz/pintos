@@ -30,7 +30,7 @@ Robert Gasparyan <robertga@stanford.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-/* TODO! */
+We used no new data structures for argument passing.
 
 ---- ALGORITHMS ----
 
@@ -48,7 +48,7 @@ that the elements of argv[] are in the right order by initializing argv[] at
 the proper location on the stack, and then reading the addresses of the
 arguments, which are already on the stack, to populate argv[]. We avoid
 overflowing the stack page by limiting the length of the args[] array to one
-KB.
+page.
 
 ---- RATIONALE ----
 
@@ -56,6 +56,7 @@ KB.
 
 /* TODO -- More detail? We might need to say _how_ strtok's output
 could be corrupted. Otherwise this question seems too simple. */
+
 strtok_r() is the reentrant version of strtok() -- that is to say, it is
 thread-safe. If a timer interrupt occurred while we were parsing the
 arguments, strtok()'s output could be corrupted; however, strtok_r()
@@ -65,13 +66,13 @@ will still return the correct output.
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
 
-/* TODO: I don't think this is true. The race between the caller and load
-would still exist, wouldn't it? So wouldn't we still need to copy in the
-command? */
-In the Pintos approach, we allocate an entirely new page for the copy of the
-command string, which is then freed when the new thread is loaded. Separating
-the command in the shell would avoid the need to do this, since we would not
-need a copy of the command for the arguments.
+One advantage of the Unix approach is that we could potentially save space by
+parsing the arguments in the shell. In the Pintos approach, we need to pass two
+strings to load(): the command, and the string that was typed into the shell.
+If there are a lot of spaces in between arguments, for example, we'll need to
+store a larger string in memory. In the Unix approach, we can keep a smaller
+amount of data around by removing these spaces and not needing to include the
+command twice.
 
 The Unix approach also has the advantage that it knows earlier which command is
 actually called. In the Pintos approach, we just take the command as a raw
@@ -107,6 +108,21 @@ Members added to struct thread in thread.c:
     struct file **fd_table;     /* A table of this process' file descriptors. */
     size_t fd_table_size;       /* The size of the table. */
     size_t fd_table_tail_idx;   /* The highest used fd in the table. */
+
+New struct in thread.h:
+
+/* A structure to keep track of a thread's child processes, which helps us
+ * manage waiting on children. Keeping this around allows us to let child
+ * threads die, even if we haven't waited on them yet.
+ */
+struct child_state
+  {
+    struct list_elem elem;              /* List element. */
+    int exit_status;                    /* Exit status (if applicable) */
+    tid_t tid;                          /* tid of child. */
+    bool load_success;                  /* True if child loaded successfully*/
+    struct semaphore sema;              /* For synch between parent/child */
+  };
 
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
