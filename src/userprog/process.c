@@ -21,6 +21,7 @@
 #include "threads/malloc.h"
 
 #define FILENAME_MAX_LEN 14
+#define MAX_ARG_SIZE 1024
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp,
@@ -538,7 +539,7 @@ setup_args (void **esp, const char *aux)
   int argc = 0;
 
   /* Limit total length of args to one page */
-  if (strlen(aux) > 4096)
+  if (strlen(aux) > MAX_ARG_SIZE)
     return false;
 
   for (token = strtok_r ((char *)aux, " ", &save_ptr); token != NULL;
