@@ -30,7 +30,7 @@ struct child_state
   {
     struct list_elem elem;              /* List element. */
     int exit_status;                    /* Exit status (if applicable) */
-    tid_t tid;
+    tid_t tid;                          /* tid of child. */
     bool load_success;                  /* True if child loaded successfully*/
     struct semaphore sema;              /* For synch between parent/child */
   };

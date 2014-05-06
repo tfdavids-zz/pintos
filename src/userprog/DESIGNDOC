@@ -30,6 +30,8 @@ Robert Gasparyan <robertga@stanford.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+/* TODO! */
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe how you implemented argument parsing.  How do
@@ -52,6 +54,8 @@ KB.
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
 
+/* TODO -- More detail? We might need to say _how_ strtok's output
+could be corrupted. Otherwise this question seems too simple. */
 strtok_r() is the reentrant version of strtok() -- that is to say, it is
 thread-safe. If a timer interrupt occurred while we were parsing the
 arguments, strtok()'s output could be corrupted; however, strtok_r()
@@ -96,6 +100,13 @@ static uint8_t syscall_arg_num[] =
 
 /* A coarse lock for accessing the (thread-unsafe) filesystem. */
 struct lock filesys_lock;
+
+Members added to struct thread in thread.c:
+
+    /* State for managing file descriptors. */
+    struct file **fd_table;     /* A table of this process' file descriptors. */
+    size_t fd_table_size;       /* The size of the table. */
+    size_t fd_table_tail_idx;   /* The highest used fd in the table. */
 
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
@@ -185,6 +196,8 @@ then we might be forced to check each byte with pagedir_get_page.
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
 
+/* TODO -- Clean this up */
+
 Every parent process has a list of child_states (list children) each
 corresponding to a child process that has not been waited on. Child state
 contains the tid, exit_status, load_success (initalized to false) and a
@@ -256,12 +269,16 @@ code here
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
 
+/* TODO! */
+
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
 >> calls wait(C) before C exits?  After C exits?  How do you ensure
 >> that all resources are freed in each case?  How about when P
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
+
+/* TODO! */
 
 ---- RATIONALE ----
 
