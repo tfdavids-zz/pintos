@@ -70,6 +70,7 @@ process_execute (const char *file_name)
   sema_down (&cs->sema);
   if (!cs->load_success)
     {
+      process_wait (tid);
       return TID_ERROR;
     }
 

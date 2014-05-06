@@ -276,6 +276,7 @@ thread_create (const char *name, int priority,
 
       cs->exit_status = -1; /* By default, assume error. */
       cs->tid = tid;
+      cs->load_success = false;
       sema_init (&cs->sema, 0);
       list_push_back (&cur->children, &cs->elem);
 
