@@ -13,14 +13,11 @@
 static int find_unused_fd (void);
 static bool expand_table (void);
 
+/* Open the supplied file, allocate a file descriptor for it,
+   and return that file descriptor. Return -1 on error. */
 int
 fd_table_open (const char *file)
 {
-  /* assume file is valid */
-  /* try using fd equal to tail_idx + 1.
-   * if cannot, then try finding unused fd from 2 to tail_idx */
-  /* if still cannot, expand table and then use tail_idx + 1. */
-  /* TODO: figure out if a file is already open */
   struct thread *t = thread_current (); 
   struct file *f = filesys_open (file);
   if (f == NULL)
@@ -28,7 +25,8 @@ fd_table_open (const char *file)
     return -1;
   }
 
-  /* try to find an unused slot */
+  /* Attempt to find an unused slot in our table for the
+     newly opened file. */
   int fd = find_unused_fd ();
   if (fd > 0)
     {
@@ -40,7 +38,8 @@ fd_table_open (const char *file)
       return fd;
     }
 
-  /* expand the table and return the next slot. */
+  /* If we could not find an unused fd, then grow the table
+     and select an fd. */
   if (!expand_table ())
     {
       return -1;
@@ -51,6 +50,8 @@ fd_table_open (const char *file)
   return fd;
 }
 
+/* Return a pointer to the struct file indexed by
+   the supplied file descriptor, or NULL on error. */
 struct file *
 fd_table_get_file (int fd)
 {
@@ -62,18 +63,18 @@ fd_table_get_file (int fd)
   return t->fd_table[fd];
 }
 
+/* Close the file corresponding to the supplied file
+   descriptor and mark the file descriptor as unused.
+   Return NULL on error. */
 bool
 fd_table_close (int fd)
 {
-  /*  Make sure fd is valid */
   if (!fd_table_is_valid_fd (fd))
   {
     return false;
   }
 
-  /*  given that fd is valid, clear its entry and free the memory. */
   struct thread *t = thread_current ();
-
   file_close (t->fd_table[fd]);
   t->fd_table[fd] = NULL;
 
@@ -84,27 +85,32 @@ fd_table_close (int fd)
   return true;
 }
 
+/* Return true iff the supplied file descriptor is valid.
+   In particular, valid descriptors a) do not equal STDIN or
+   STDOUT (this interface does not meaningfully interact with either
+   of those descriptors), b) are less than the largest used descriptor,
+   and c) are used. */
 bool
 fd_table_is_valid_fd (int fd)
 {
-  /* fd cannot be 0 or 1 */
-  /* fd must not be greater than fd_table_tail_idx */
-  /* fd must be used */
   struct thread *t = thread_current ();
   return (fd != STDIN_FILENO) && (fd != STDOUT_FILENO) &&
     ((size_t)fd <= t->fd_table_tail_idx) && (t->fd_table[fd] != NULL);
 }
 
+/* Return an unused fd, or -1 if no such fd was found. */
 static int
 find_unused_fd (void)
 {
   struct thread *t = thread_current ();
+
+  /* First, attempt to use the highest unused fd. */
   if (t->fd_table_tail_idx < (t->fd_table_size - 1))
     {
       return t->fd_table_tail_idx + 1;
     }
 
-  /* Comb through the table and look for unused */
+  /* Comb through the table and look for an unused fd. */
   size_t i;
   for (i = 2; i < t->fd_table_tail_idx; i++)
     {
@@ -113,11 +119,11 @@ find_unused_fd (void)
           return i;
         }
     }
-
-  /* Could not find an unused fd. */
   return -1;
 }
 
+/* Grow the file descriptor table by a factor of FD_EXPAND_FACTOR;
+   return false on error, true otherwise. */
 static bool
 expand_table (void)
 {

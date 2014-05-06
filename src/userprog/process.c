@@ -36,13 +36,12 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  /* TODO: What if length of file_name is > FILENAME_MAX_LEN? */
   char process_name[FILENAME_MAX_LEN + 1];
   char *pch = strchr (file_name, ' ');
   int index = pch ? pch - file_name : FILENAME_MAX_LEN;
   strlcpy (process_name, file_name, index + 1);
 
-  /* Make a copy of FILE_NAME.
+  /* Make a copy of file_name.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
@@ -70,10 +69,9 @@ process_execute (const char *file_name)
     }
 
   sema_down (&cs->sema);
-
   if (!cs->load_success)
     {
-      tid = TID_ERROR;
+      return TID_ERROR;
     }
 
   return tid;
@@ -95,15 +93,18 @@ start_process (void *file_name_)
   success = load (thread_current ()->name, &if_.eip, &if_.esp, file_name_);
   palloc_free_page (file_name_);
 
+  /* Inform parent of our success, or lack thereof.
+     NB: Note that the parent thread _should_ exist at this point. However,
+     there is a slight chance that the parent will be killed directly after we
+     check for its existence and directly before we access its child list --
+     the OS could, say, oom-kill it. As such, interrupts must be disabled
+     during the window in which we touch the parent thread. */
   enum intr_level old_level = intr_disable ();
-
-  /* Inform parent of our success or lackthereof*/
-
   struct thread *parent = thread_lookup (thread_current ()->parent_tid);
   if (parent)
     {
-      struct child_state *cs = thread_child_lookup (parent,
-                                                    thread_current ()->tid);
+      struct child_state *cs =
+        thread_child_lookup (parent, thread_current ()->tid);
       cs->load_success = success;
       sema_up (&cs->sema);
     }
@@ -136,23 +137,18 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
   struct child_state *cs = thread_child_lookup (thread_current (), child_tid);
-  if (!cs)
-    return -1;
 
-  /* TODO: PROBLEM: As soon as a thread is set to
-   * the THREAD_DYING state, we can no longer access
-   * any of its struct's contents -- the memory for that thread
-   * struct might have already been freed.
-   *
-   * This means that we cannot reliably check a) child->status 
-   * or b) child->exit_status.
-   */
+  /* The child state will exist iff process_wait has not been previously called
+     for the given child_tid. */
+  if (!cs)
+    {
+      return -1;
+    }
 
   sema_down (&cs->sema);
-
   int status = cs->exit_status;
   list_remove (&cs->elem);
   free (cs);
@@ -168,14 +164,16 @@ process_exit (void)
 
   printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
 
+  /* Inform this process' parent, if it exists, that we are exiting.
+     Interrupts must be disabled to ensure that the parent does not
+     finish executing after we check for its existence but before we
+     attempt to access its fields. */
   enum intr_level old_level = intr_disable ();
-
   struct thread *parent = thread_lookup (thread_current ()->parent_tid);
   if (parent)
     {
       struct child_state *cs = thread_child_lookup (parent,
         thread_current ()->tid);
-      cs->has_finished = true;
       sema_up (&cs->sema);
     }
   intr_set_level (old_level);
@@ -189,23 +187,18 @@ process_exit (void)
       free (cs);
     }
 
-  /* Close all open files, including the executable, and free the thread's
-   * name and its fd table. */
+  /* Close all open files, including the executable, and free 
+   * the fd table. */
   size_t i;
   for (i = 0; i <= cur->fd_table_tail_idx; i++)
     {
       if (cur->fd_table[i] != NULL)
       {
-        /* TODO: Can process_exit be invoked from somewhere besides syscall.c?
-         * If so, then we must invoke close through syscall.c (would need to add
-         * another function to syscall.h)
-         */
         fd_table_close (i);
       }
     }
   free (cur->fd_table);
   file_close (cur->executable);
-
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -304,7 +297,8 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp, void *aux);
+static bool setup_stack (void **esp, const char *aux);
+static bool setup_args (void **esp, const char *aux);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -537,9 +531,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 static bool
-setup_args (void **esp, void *aux)
+setup_args (void **esp, const char *aux)
 {
-  // TODO: verify that this works
 
   /* TODO: Where is this maximum stated? */
   char args[1024]; /* Max arg size = 1KB */
@@ -594,9 +587,11 @@ setup_args (void **esp, void *aux)
 }
 
 /* Create a minimal stack by mapping a zeroed page at the top of
-   user virtual memory. */
+   user virtual memory, and by installing the supplied arguments
+   onto the stack. The aux parameter should be a string of arguments
+   separated by whitespace. */
 static bool
-setup_stack (void **esp, void *aux) 
+setup_stack (void **esp, const char *aux) 
 {
   uint8_t *kpage;
   bool success = false;

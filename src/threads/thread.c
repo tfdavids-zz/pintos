@@ -271,10 +271,8 @@ thread_create (const char *name, int priority,
           return TID_ERROR;       
         }
 
-      cs->exit_status = -1; // will be set to 0 when we exit gracefully
+      cs->exit_status = -1; /* By default, assume error. */
       cs->tid = tid;
-      cs->has_loaded = false;
-      cs->has_finished = false;
       sema_init (&cs->sema, 0);
       list_push_back (&cur->children, &cs->elem);
 
@@ -707,6 +705,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
   t->is_parent = false;
+  t->exit_status - 1; /* By default, assume error. */
   if (thread_mlfqs)
     {
       if (t == initial_thread)
@@ -859,22 +858,27 @@ allocate_tid (void)
   return tid;
 }
 
+/* Returns the thread whose tid matches the supplied tid, or NULL
+   if no such thread exists. This function must be called with
+   interrupts disabled. */
 struct thread *
 thread_lookup (tid_t tid)
 {
-  struct list_elem *e;
+  ASSERT (intr_get_level () == INTR_OFF);
 
+  struct thread *t = NULL;
+  struct list_elem *e;
   for (e = list_begin (&all_list); e != list_end (&all_list);
        e = list_next (e))
     {
-      struct thread *t = list_entry (e, struct thread, allelem);
+      t = list_entry (e, struct thread, allelem);
       if (t->tid == tid)
-        return t;
+        {
+          break;
+        }
     }
-
-  return NULL;
+  return t;
 }
-
 
 struct child_state *
 thread_child_lookup (struct thread *t, tid_t child_tid)
