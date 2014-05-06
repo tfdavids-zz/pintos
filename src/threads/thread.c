@@ -273,8 +273,7 @@ thread_create (const char *name, int priority,
 
       cs->exit_status = -1; // will be set to 0 when we exit gracefully
       cs->tid = tid;
-      cs->has_loaded = false;
-      cs->has_finished = false;
+      cs->load_success = false;
       sema_init (&cs->sema, 0);
       list_push_back (&cur->children, &cs->elem);
 

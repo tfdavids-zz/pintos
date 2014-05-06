@@ -73,6 +73,7 @@ process_execute (const char *file_name)
 
   if (!cs->load_success)
     {
+      process_wait (tid);
       tid = TID_ERROR;
     }
 
@@ -175,7 +176,6 @@ process_exit (void)
     {
       struct child_state *cs = thread_child_lookup (parent,
         thread_current ()->tid);
-      cs->has_finished = true;
       sema_up (&cs->sema);
     }
   intr_set_level (old_level);

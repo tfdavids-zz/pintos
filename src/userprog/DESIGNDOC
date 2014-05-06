@@ -101,6 +101,17 @@ such as a security attack.
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
 
+Every parent process has a list of child_states(list children) each
+corresponding to a child process that has not been waited on. Child state
+contains the tid, exit_status, load_success(init to false) and a
+semaphore(init to 0) for synchronization between parent and child
+processes. When a child thread terminates we lookup its child_state in
+parents children list(if parent is still alive) and set the exit_status
+appropriately. When a parent calls wait on a tid, we lookup the
+child_state, remove it from the list of children and return
+exit_statues. If wait is called again with the same tid we won't find the
+child_state in the list and return -1.
+
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
 >> process to be terminated.  System calls are fraught with such
@@ -134,11 +145,23 @@ such as a security attack.
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
 
+We used is_user_vaddr and pagedir_get_page to check if a given ptr points
+to user memory or not before dereferencing it. We also created wrapper
+functions is_valid_range  and is_valid_string to help us validate file
+names and buffer passed to system calls. The reason we chose this approach
+to implement user memory access instead of handling it in page_fault is
+because it seemed simpler.
+
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
+
+We did not change it. One advantage of changing one-to-one mapping would
+be the ability to have multiple threads per process.
+
+
 
                SURVEY QUESTIONS
                ================
