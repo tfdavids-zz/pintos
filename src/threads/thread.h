@@ -34,6 +34,7 @@ struct child_state
     bool has_loaded;
     bool load_success;
     bool has_finished;
+    struct semaphore sema;
     struct thread *child;
   };
 
@@ -114,20 +115,11 @@ struct thread
 
     /* State for managing children. */
     struct list children;               /* Stores state about threads
-					                               * spawned by this thread */
+                                         * spawned by this thread */
     struct thread *parent;
     tid_t parent_tid;                   /* Parent process pid of this process */
     int exit_status;                    /* Exit status (if applicable) */
-
-    struct condition child_loaded;      /* Child finished loading Waiting thread
-                                         * finished */
-    struct lock child_loaded_lock;      /* A lock for cond child_loaded */
-
-    struct condition child_exited;      /* Child finished running */
-    struct lock child_exited_lock;      /* A lock for waiting_child_finished */
     bool is_parent;
-
-    struct semaphore sema; /* TODO: Delete this? */
  
     /* State for managing file descriptors. */
     struct file **fd_table;

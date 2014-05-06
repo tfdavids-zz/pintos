@@ -69,12 +69,8 @@ process_execute (const char *file_name)
       return TID_ERROR;
     }
 
-  /* TODO: Race. */
-  struct thread *t = thread_lookup (tid);
-  if (t)
-    {
-      sema_down (&t->sema);
-    }
+  sema_down (&cs->sema);
+
   if (!cs->load_success)
     {
       tid = TID_ERROR;
@@ -109,9 +105,9 @@ start_process (void *file_name_)
       struct child_state *cs = thread_child_lookup (parent,
                                                     thread_current ()->tid);
       cs->load_success = success;
+      sema_up (&cs->sema);
     }
   intr_set_level (old_level);
-  sema_up (&thread_current ()->sema);
 
   /* If load failed, quit. */
   if (!success) 
@@ -155,11 +151,7 @@ process_wait (tid_t child_tid UNUSED)
    * or b) child->exit_status.
    */
 
-  struct thread *t = thread_lookup (child_tid);
-  if (t)
-    {
-      sema_down (&t->sema);
-    }
+  sema_down (&cs->sema);
 
   int status = cs->exit_status;
   list_remove (&cs->elem);
@@ -184,8 +176,8 @@ process_exit (void)
       struct child_state *cs = thread_child_lookup (parent,
         thread_current ()->tid);
       cs->has_finished = true;
+      sema_up (&cs->sema);
     }
-  sema_up (&thread_current ()->sema);
   intr_set_level (old_level);
 
   /* Destroy this process' list of children. */

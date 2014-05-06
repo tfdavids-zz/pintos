@@ -275,6 +275,7 @@ thread_create (const char *name, int priority,
       cs->tid = tid;
       cs->has_loaded = false;
       cs->has_finished = false;
+      sema_init (&cs->sema, 0);
       list_push_back (&cur->children, &cs->elem);
 
       /* Set up the file descriptor table. */
@@ -721,12 +722,6 @@ init_thread (struct thread *t, const char *name, int priority)
     }
 
   list_init (&t->children);
-  sema_init (&t->sema, 0);
-  cond_init (&t->child_loaded);
-  lock_init (&t->child_loaded_lock);
-  cond_init (&t->child_exited);
-  lock_init (&t->child_exited_lock);
-
   list_init (&t->lock_list);
   t->blocking_lock = NULL;
   old_level = intr_disable ();
@@ -885,7 +880,6 @@ struct child_state *
 thread_child_lookup (struct thread *t, tid_t child_tid)
 {
   struct list_elem *e;
-
   for (e = list_begin (&t->children); e != list_end (&t->children);
        e = list_next (e))
     {
@@ -893,7 +887,6 @@ thread_child_lookup (struct thread *t, tid_t child_tid)
       if (cs->tid == child_tid)
         return cs;
     }
-
   return NULL;
 }
 
