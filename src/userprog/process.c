@@ -61,12 +61,6 @@ process_execute (const char *file_name)
 
   /* Wait for child to finish loading before returning */
   struct child_state *cs = thread_child_lookup (thread_current (), tid);
-  if (!cs)
-    {
-      palloc_free_page (fn_copy); // TODO: is this necessary? find out where this is normally freed
-      return TID_ERROR;
-    }
-
   struct thread *t = thread_lookup (tid);
   if (t)
     {
