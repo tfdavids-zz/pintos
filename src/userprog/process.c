@@ -21,6 +21,8 @@
 #include "threads/malloc.h"
 
 #define FILENAME_MAX_LEN 14
+  /* TODO: Where is this maximum stated? */
+#define ARGS_MAX_LEN 1024
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp,
@@ -533,21 +535,25 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_args (void **esp, const char *aux)
 {
-
-  /* TODO: Where is this maximum stated? */
-  char args[1024]; /* Max arg size = 1KB */
+  char args[ARGS_MAX_LEN];
   char *curr = args;
   char *token, *save_ptr;
   int argc = 0, len = 0, tmp = 0;
 
-  for (token = strtok_r ((char *)aux, " ", &save_ptr); token != NULL;
-       token = strtok_r (NULL, " ", &save_ptr))
+  for (token = strtok_r ((char *)aux, " ", &save_ptr); token != NULL &&
+       len < ARGS_MAX_LEN; token = strtok_r (NULL, " ", &save_ptr))
     {
       tmp = strlen(token);
       strlcpy(curr, token, tmp + 1);
       len += tmp + 1;
       curr += tmp + 1;
       argc++;
+    }
+
+  /* TODO: Can / should we do this? */
+  if (len > ARGS_MAX_LEN)
+    {
+      return false;
     }
 
   *esp = (char *)*esp - len;
