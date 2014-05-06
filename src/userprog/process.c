@@ -64,10 +64,7 @@ process_execute (const char *file_name)
   struct thread *t = thread_lookup (tid);
   if (t)
     {
-      while (!cs->has_loaded)
-        {
-          sema_down (&t->sema);
-        }
+      sema_down (&t->sema);
     }
   if (!cs->load_success)
     {
