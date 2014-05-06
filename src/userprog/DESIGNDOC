@@ -54,13 +54,11 @@ page.
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
 
-/* TODO -- More detail? We might need to say _how_ strtok's output
-could be corrupted. Otherwise this question seems too simple. */
-
 strtok_r() is the reentrant version of strtok() -- that is to say, it is
 thread-safe. If a timer interrupt occurred while we were parsing the
-arguments, strtok()'s output could be corrupted; however, strtok_r()
-will still return the correct output.
+arguments, strtok() could lose its place in the string we were parsing, and we
+would lose some of the arguments. Using strtok_r() ensures that our location
+is saved, and we will always retrieve the full list of arguments.
 
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
@@ -212,18 +210,20 @@ then we might be forced to check each byte with pagedir_get_page.
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
 
-/* TODO -- Clean this up */
+Every parent process keeps a list of struct child_states, which correspond to
+the child processes it has spawned. Each of these contains the tid, exit
+status, and load success of the child, as well as a semaphore for
+synchronization between the parent and child processes. When a child thread
+exits, we look up its child_state in the parent thread (if the parent is still
+alive) and set the exit status to the appropriate value. This ensures that the
+parent can recall the child's exit status even if the child has already exited
+(and the memory has been freed).
 
-Every parent process has a list of child_states (list children) each
-corresponding to a child process that has not been waited on. Child state
-contains the tid, exit_status, load_success (initalized to false) and a
-semaphore (initialized to 0) for synchronization between parent and child
-processes. When a child thread terminates we lookup its child_state in
-parents children list(if parent is still alive) and set the exit_status
-appropriately. When a parent calls wait on a tid, we lookup the
-child_state, remove it from the list of children and return
-exit_statues. If wait is called again with the same tid we won't find the
-child_state in the list and return -1.
+When a parent calls wait(), we look up the appropriate child_state in its list
+of children. We then remove this element, which ensures that we can't wait on
+the same child twice. We retrieve the child's exit status from the element and
+return that. If wait is called again, it will return -1, since the child won't
+be found.
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -285,7 +285,13 @@ code here
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
 
-TODO: we wait on a semaphore held by the parent that the child ups when it finishes
+After a thread calls exec, we create a struct child_state corresponding to the
+process we have just spawned. We then down the child_state's semaphore, waiting
+for someone else to up it before we continue. The child, after it finishes
+loading, will up this semaphore, allowing the parent to continue. However,
+before it does this, it sets the load_success bit in the struct child_state to
+the appropriate value. Once the parent resumes (after it has downed the
+semaphore), it reads this bit to see whether the load was successful.
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
@@ -294,7 +300,29 @@ TODO: we wait on a semaphore held by the parent that the child ups when it finis
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
 
-TODO: talk about child_state struct
+Most of these issues are handled by our struct child_state. When P calls
+wait(C) before C exits, P will down the semaphore in the struct child_state. C
+will only up this semaphore in process_exit, after its exit status has been
+appropriately set. This ensures that P waits until C exits to continue, and it
+will be able to retrieve the correct exit status. C will then be freed
+appropriately after upping the semaphore.
+
+When P calls wait(C) after C exits, C will be gone and freed, but the struct
+child_state will still be around in P's list of children, so P will be able to
+immediately retrieve the exit status of C and return that.
+
+When P terminates, all of its remaining struct child_state elements are freed.
+We can safely do this because they won't be needed for anything else (since
+only P can wait on its children), and it ensures that the memory is freed
+properly.
+
+One thing we needed to take into account were race conditions. When C finishes,
+it's possible that the parent has already exited without waiting on C. Thus, we
+need to check for existence of the parent before upping the semaphore. However,
+it's possible that we see the parent, but it is scheduled and freed before we
+get a chance to up the semaphore. To ensure this can't happen, we take the
+precaution of disabling interrupts around this lookup, so the parent can't be
+pulled out from under us.
 
 ---- RATIONALE ----
 
