@@ -13,6 +13,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -24,6 +25,7 @@
 #define NUM_PRIO 64
 #define INIT_THREAD_NICE 0
 #define INIT_RECENT_CPU 0
+#define INIT_FDTABE_SIZE 32
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -185,7 +187,7 @@ thread_tick (void)
 
       /* Enforce preemption if thread no longer has highest priority */
       if (!thread_has_highest_priority (t))
-	    intr_yield_on_return ();
+	      intr_yield_on_return ();
     }
   
   if (++thread_ticks >= TIME_SLICE)
@@ -254,6 +256,40 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+
+/* Only (non-idle) user processes need access to store child state and
+   file descriptors. */
+#ifdef USERPROG
+  struct thread *cur = thread_current ();
+  if (function != idle)
+    {
+      /* Handle child/parent process issues */
+      t->parent_tid = cur->tid;
+
+      /* Create struct child_state representing this child thread */
+      struct child_state *cs = (struct child_state *)
+        malloc (sizeof (struct child_state));
+      if (cs == NULL)
+        {
+          return TID_ERROR;       
+        }
+
+      cs->exit_status = -1; /* By default, assume error. */
+      cs->tid = tid;
+      cs->load_success = false;
+      sema_init (&cs->sema, 0);
+      list_push_back (&cur->children, &cs->elem);
+
+      /* Set up the file descriptor table. */
+      t->fd_table_size = INIT_FDTABE_SIZE;
+      t->fd_table = calloc (t->fd_table_size, sizeof (struct file *));
+      if (t->fd_table == NULL)
+        {
+          return TID_ERROR;
+        }
+      t->fd_table_tail_idx = 1;
+    }
+#endif
 
   /* Yield current thread if not highest. */
   enum intr_level old_level = intr_disable ();
@@ -572,7 +608,7 @@ recompute_load_avg_mlfqs (void)
   if (idle_thread->status == THREAD_READY)
     ready_threads--;
   
-  if(thread_current () != idle_thread)
+  if (thread_current () != idle_thread)
     ready_threads++;
 
   load_avg = fix_add (
@@ -673,25 +709,30 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
+  t->exit_status = -1; /* By default, assume error. */
   if (thread_mlfqs)
     {
       if (t == initial_thread)
-	{
-	  t->nice = INIT_THREAD_NICE;
-	  t->recent_cpu = fix_int(INIT_RECENT_CPU);
-	}
+    	{
+	      t->nice = INIT_THREAD_NICE;
+	      t->recent_cpu = fix_int(INIT_RECENT_CPU);
+	    }
       else
-	{
-	  t->nice = thread_current ()->nice;
-	  t->recent_cpu = thread_current ()->recent_cpu;
-	}
+	    {
+	      t->nice = thread_current ()->nice;
+	      t->recent_cpu = thread_current ()->recent_cpu;
+	    }
     }
+
+  list_init (&t->children);
   list_init (&t->lock_list);
   t->blocking_lock = NULL;
   old_level = intr_disable ();
-  if (thread_mlfqs){
-    recompute_priority_mlfqs (t, NULL);
-  }
+  if (thread_mlfqs)
+    {
+      recompute_priority_mlfqs (t, NULL);
+    }
+
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
 }
@@ -819,6 +860,42 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+/* Returns the thread whose tid matches the supplied tid, or NULL
+   if no such thread exists. This function must be called with
+   interrupts disabled. */
+struct thread *
+thread_lookup (tid_t tid)
+{
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  struct thread *t = NULL;
+  struct list_elem *e;
+  for (e = list_begin (&all_list); e != list_end (&all_list);
+       e = list_next (e))
+    {
+      t = list_entry (e, struct thread, allelem);
+      if (t->tid == tid)
+        {
+          break;
+        }
+    }
+  return t;
+}
+
+struct child_state *
+thread_child_lookup (struct thread *t, tid_t child_tid)
+{
+  struct list_elem *e;
+  for (e = list_begin (&t->children); e != list_end (&t->children);
+       e = list_next (e))
+    {
+      struct child_state *cs = list_entry (e, struct child_state, elem);
+      if (cs->tid == child_tid)
+        return cs;
+    }
+  return NULL;
 }
 
 /* Offset of `stack' member within `struct thread'.

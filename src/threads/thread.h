@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/fixed-point.h"
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -24,6 +25,15 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+struct child_state
+  {
+    struct list_elem elem;              /* List element. */
+    int exit_status;                    /* Exit status (if applicable) */
+    tid_t tid;                          /* tid of child. */
+    bool load_success;                  /* True if child loaded successfully*/
+    struct semaphore sema;              /* For synch between parent/child */
+  };
 
 /* A kernel thread or user process.
 
@@ -87,6 +97,7 @@ struct thread
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
+    struct file *executable;            /* File that spawned this thread. */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     int eff_priority;                   /* Priority (with donation)*/
@@ -100,6 +111,17 @@ struct thread
     fixed_point_t recent_cpu;           /* Recent cpu recieved, for mlfqs */
 
 #ifdef USERPROG
+    /* State for managing children. */
+    struct list children;               /* Stores state about threads
+                                         * spawned by this thread */
+    tid_t parent_tid;                   /* Parent process pid of this process */
+    int exit_status;                    /* Exit status (if applicable) */
+ 
+    /* State for managing file descriptors. */
+    struct file **fd_table;           /* The table of file descriptors. */
+    size_t fd_table_size;             /* The size of the table. */
+    size_t fd_table_tail_idx;         /* Highest used fd. */
+
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
@@ -128,6 +150,9 @@ void thread_unblock (struct thread *);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
+
+struct thread *thread_lookup (tid_t tid);
+struct child_state *thread_child_lookup (struct thread *t, tid_t child_tid);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
