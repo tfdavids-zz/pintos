@@ -48,7 +48,7 @@ that the elements of argv[] are in the right order by initializing argv[] at
 the proper location on the stack, and then reading the addresses of the
 arguments, which are already on the stack, to populate argv[]. We avoid
 overflowing the stack page by limiting the length of the args[] array to one
-page.
+KB.
 
 ---- RATIONALE ----
 
@@ -105,21 +105,31 @@ Members added to struct thread in thread.c:
     /* State for managing file descriptors. */
     struct file **fd_table;     /* A table of this process' file descriptors. */
     size_t fd_table_size;       /* The size of the table. */
-    size_t fd_table_tail_idx;   /* The highest used fd in the table. */
+    size_t fd_table_tail_idx;   /* The highest used fd in the table.
+                                   Used for bookkeeping purposes. */
 
 New struct in thread.h:
 
-/* A structure to keep track of a thread's child processes, which helps us
- * manage waiting on children. Keeping this around allows us to let child
- * threads die, even if we haven't waited on them yet.
+/* A structure to keep track of a process's child process, which helps us
+ * manage waiting on children and preserves information about dead children.
  */
 struct child_state
   {
-    struct list_elem elem;              /* List element. */
-    int exit_status;                    /* Exit status (if applicable) */
-    tid_t tid;                          /* tid of child. */
-    bool load_success;                  /* True if child loaded successfully*/
-    struct semaphore sema;              /* For synch between parent/child */
+    struct list_elem elem;              /* List element to embed struct into
+                                           a parent process' children children.
+                                           */
+    int exit_status;                    /* Exit status (if applicable);
+                                           for process_wait.*/
+    tid_t tid;                          /* tid of child; needed so the system
+                                           can be searched for the child
+                                           process. */
+    bool load_success;                  /* True iff child loaded successfully;
+                                           for communication in process_execute.
+                                           */
+    struct semaphore sema;              /* For synchronization between
+                                           parent and child in process_execute
+                                           and start_process, and process_wait
+                                           and process_exit. */
   };
 
 >> B2: Describe how file descriptors are associated with open files.

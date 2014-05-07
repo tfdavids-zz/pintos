@@ -110,6 +110,7 @@ struct thread
     int nice;                           /* Niceness of thread, for mlfqs */
     fixed_point_t recent_cpu;           /* Recent cpu recieved, for mlfqs */
 
+#ifdef USERPROG
     /* State for managing children. */
     struct list children;               /* Stores state about threads
                                          * spawned by this thread */
@@ -121,7 +122,6 @@ struct thread
     size_t fd_table_size;             /* The size of the table. */
     size_t fd_table_tail_idx;         /* Highest used fd. */
 
-#ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
