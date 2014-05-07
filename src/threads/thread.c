@@ -709,7 +709,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
-  t->exit_status - 1; /* By default, assume error. */
+  t->exit_status = -1; /* By default, assume error. */
   if (thread_mlfqs)
     {
       if (t == initial_thread)
