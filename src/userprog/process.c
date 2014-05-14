@@ -19,6 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "vm/frame.h"
 
 #define FILENAME_MAX_LEN 14
 #define MAX_ARG_SIZE 1024
@@ -503,7 +504,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
+      uint8_t *kpage = ftable_get_page ();
       if (kpage == NULL)
         return false;
 
