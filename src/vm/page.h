@@ -8,30 +8,15 @@
  * about that data.
  */
 
-// where is the data?
-enum data_loc {
-	DISK,
-	ZEROES,
-	SWAP
-};
 
-struct supp_pte {
-	void *address;
-	bool writable;
+bool page_table_init (struct hash *h);
 
-	enum data_loc loc;
+// initialize (in the supplemental page table) a virtual page at (virtual) address upage
+bool page_alloc (struct hash *h, void *upage, bool writable);
 
-	// if the page should be in memory, we need this
-	struct file *file;
-	off_t start;
+// handle a page fault (obtain a frame, fetch the right data into the frame, point the VA to the frame, and return success)
+bool page_handle_fault (struct hash *h, void *upage);
 
-	struct hash_elem *hash_elem;
-};
-
-// look up supp_pte based on given address
-struct supp_pte *supp_pte_lookup (void *address);
-
-// insert a supplemental page table entry for user memory at `address`
-void supp_pte_insert (void *address);
+void page_free (struct hash *h, void *upage);
 
 #endif /* VM_PAGE_H */

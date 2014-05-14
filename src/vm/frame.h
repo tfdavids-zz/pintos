@@ -2,6 +2,9 @@
 #define VM_FRAME_H
 
 // grab a new frame and return the address
-void *alloc_frame (void);
+void *frame_alloc (void);
+void frame_free (void *page);
+
+void frame_init (void);
 
 #endif

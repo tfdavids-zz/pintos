@@ -4,6 +4,7 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -150,22 +151,13 @@ page_fault (struct intr_frame *f)
   user = (f->error_code & PF_U) != 0;
 
   // handle page fault
-  // step 1: locate the page that faulted in the supplemental table
-  struct supp_pte *e = supp_pte_lookup (fault_addr);
   void *upage = pg_round_down (fault_addr);
-  // step 2: obtain a frame to store the page
-  void *kpage = alloc_frame ();
-  // step 3: fetch the data into the frame
-  // ???
-  // step 4: point the page table entry for the faulting virtual address to
-  // the physical page
-  pagedir_set_page (pd, upage, kpage, e->writable);
+  bool success = page_handle_fault (upage);
+  if (success) {
+    return;
+  }
 
-  // TODO: DELETE BELOW THIS POINT
-
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
+  /* else we have a really bad page fault, so just do this */
   thread_current ()->exit_status = -1;
   printf ("Page fault at %p: %s error %s page in %s context.\n",
           fault_addr,

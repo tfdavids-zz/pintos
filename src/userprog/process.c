@@ -323,6 +323,7 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
+  page_table_init (t->h); // activate supplemental page table
   process_activate ();
 
   /* Open executable file. */
@@ -504,14 +505,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = ftable_get_page ();
+      uint8_t *kpage = frame_alloc ();
       if (kpage == NULL)
         return false;
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
-          palloc_free_page (kpage);
+          frame_free (kpage);
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -519,7 +520,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable)) 
         {
-          palloc_free_page (kpage);
+          frame_free (kpage);
           return false; 
         }
 
@@ -593,20 +594,14 @@ setup_stack (void **esp, const char *aux)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
+  success = page_alloc (((uint8_t *) PHYS_BASE) - PGSIZE, true);
+
+  if (success)
     {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        {
-          *esp = PHYS_BASE;
-          success = setup_args(esp, aux);
-        }
-      if (!success)
-        {
-          palloc_free_page (kpage);
-        }
+      *esp = PHYS_BASE;
+      success = setup_args(esp, aux);
     }
+
   return success;
 }
 
