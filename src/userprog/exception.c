@@ -152,7 +152,7 @@ page_fault (struct intr_frame *f)
 
   /* Handle page fault by loading page into memory */
   void *upage = pg_round_down (fault_addr);
-  bool success = page_handle_fault (&thread_current ()->h, upage);
+  bool success = page_handle_fault (&thread_current ()->supp_pt, upage);
   if (success) {
     return;
   }

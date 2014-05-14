@@ -324,7 +324,7 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
-  page_table_init (&t->h); // activate supplemental page table
+  page_table_init (&t->supp_pt); // activate supplemental page table
   process_activate ();
 
   /* Open executable file. */
@@ -506,7 +506,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = frame_alloc ();
+      uint8_t *kpage = frame_alloc (); // TODO: use page_alloc instead (nontrivial)
       if (kpage == NULL)
         return false;
 
@@ -595,7 +595,8 @@ setup_stack (void **esp, const char *aux)
   uint8_t *kpage;
   bool success = false;
 
-  success = page_alloc (&thread_current ()->h, ((uint8_t *) PHYS_BASE) - PGSIZE, true);
+  success = page_alloc (&thread_current ()->supp_pt,
+                        ((uint8_t *) PHYS_BASE) - PGSIZE, true);
 
   if (success)
     {

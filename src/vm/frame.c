@@ -10,8 +10,10 @@ static struct list ftable;
 
 struct frame
   {
-    void *pg_addr;
+    void *kpage;
+    void *upage;
     struct list_elem elem; // list_elem for frame table
+    // TODO: identifier for process?
   };
 
 void
@@ -21,22 +23,25 @@ frame_table_init (void)
 }
 
 void *
-frame_alloc (void)
+frame_alloc (void *upage)
 {
-  void *page = palloc_get_page (PAL_USER);
+  void *kpage = palloc_get_page (PAL_USER);
   
-  ASSERT (page != NULL); // TODO: implement swapping
+  ASSERT (kpage != NULL); // TODO: implement swapping
 
   // now record this in our frame table
   struct frame *frame = malloc (sizeof (struct frame));
-  frame->pg_addr = page;
+  if (!frame) {
+    return NULL; // error!
+  }
+  frame->kpage = page;
   list_push_back (&ftable, &frame->elem); // add frame to our frame table
 
-  return page;
+  return kpage;
 }
 
 void
-frame_free (void *page) {
-  palloc_free_page (page);
+frame_free (void *kpage) {
+  palloc_free_page (kpage);
   // TODO
 }

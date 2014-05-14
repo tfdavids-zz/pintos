@@ -125,7 +125,7 @@ struct thread
 
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct hash h;                     /* Supplemental page table. */
+    struct hash supp_pt;                     /* Supplemental page table. */
 #endif
 
     /* Owned by thread.c. */

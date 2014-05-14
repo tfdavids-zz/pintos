@@ -34,7 +34,7 @@ struct supp_pte {
 
 	enum data_loc loc;
 
-	// if the page should be in memory, we need this
+	// if the page should be on disk, we need this
 	struct file *file;
 	off_t start;
 
@@ -67,10 +67,9 @@ bool page_table_init (struct hash *h) {
 struct supp_pte *supp_pte_lookup (struct hash *h, void *address) {
 	address = pg_round_down (address); // round down to page
 	
-	struct supp_pte *key = malloc (sizeof (struct supp_pte));
-	key->address = address;
-	struct hash_elem *e = hash_find (h, &key->hash_elem); // find the element in our hash table corresponding to this page
-	free (key);
+	struct supp_pte key;
+	key.address = address;
+	struct hash_elem *e = hash_find (h, &key.hash_elem); // find the element in our hash table corresponding to this page
 
 	struct supp_pte *pte = hash_entry (e, struct supp_pte, hash_elem);
 	return pte;
@@ -96,8 +95,11 @@ void supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage) {
 	}
 }
 
+// TODO: need to change interface for disk (and swap?) pages
 bool page_alloc (struct hash *h, void *upage, bool writable) {
 	struct supp_pte *e = malloc (sizeof (struct supp_pte));
+	if (!e)
+		return false;
 	e->address = upage;
 	e->loc = ZEROES;
 
@@ -107,7 +109,7 @@ bool page_alloc (struct hash *h, void *upage, bool writable) {
 
 bool page_handle_fault (struct hash *h, void *upage) {
 	struct supp_pte *e = supp_pte_lookup (h, upage);
-	void *kpage = frame_alloc ();
+	void *kpage = frame_alloc (upage);
 	if (!kpage) {
 		return false;
 	}
