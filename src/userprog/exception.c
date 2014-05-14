@@ -4,6 +4,7 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -149,9 +150,14 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
+  /* Handle page fault by loading page into memory */
+  void *upage = pg_round_down (fault_addr);
+  bool success = page_handle_fault (&thread_current ()->h, upage);
+  if (success) {
+    return;
+  }
+
+  /* Else we have a really bad page fault, so panic */
   thread_current ()->exit_status = -1;
   printf ("Page fault at %p: %s error %s page in %s context.\n",
           fault_addr,
