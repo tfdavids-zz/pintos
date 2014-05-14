@@ -6,7 +6,7 @@
 #include "threads/vaddr.h"
 #include "vm/frame.h"
 
-static struct list *ftable;
+static struct list ftable;
 
 struct frame
   {
@@ -15,7 +15,7 @@ struct frame
   };
 
 void
-frame_init (void)
+frame_table_init (void)
 {
   list_init (&ftable);
 }
@@ -30,7 +30,7 @@ frame_alloc (void)
   // now record this in our frame table
   struct frame *frame = malloc (sizeof (struct frame));
   frame->pg_addr = page;
-  list_push_back (ftable, &frame->elem); // add frame to our frame table
+  list_push_back (&ftable, &frame->elem); // add frame to our frame table
 
   return page;
 }

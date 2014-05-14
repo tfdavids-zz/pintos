@@ -1,3 +1,5 @@
+#include "vm/page.h"
+#include <string.h>
 #include "lib/stdint.h"
 #include "lib/stdbool.h"
 #include "lib/debug.h"
@@ -21,6 +23,9 @@ unsigned supp_pt_hash_func (const struct hash_elem *e, void *aux);
 bool supp_pt_less_func (const struct hash_elem *a,
 					 const struct hash_elem *b,
 					 void *aux);
+bool page_table_init (struct hash *h);
+struct supp_pte *supp_pte_lookup (struct hash *h, void *address);
+void supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage);
 
 // struct for an entry in the supplemental page table
 struct supp_pte {
@@ -40,18 +45,18 @@ struct supp_pte {
 	struct hash_elem hash_elem;
 };
 
-unsigned supp_pt_hash_func (const struct hash_elem *e, void *aux) {
+unsigned supp_pt_hash_func (const struct hash_elem *e, void *aux UNUSED) {
 	struct supp_pte *pte = hash_entry (e, struct supp_pte, hash_elem);
-	return hash_bytes (pte->address, sizeof(void *));
+	return hash_bytes (&pte->address, sizeof(void *));
 }
 
 bool supp_pt_less_func (const struct hash_elem *a,
 					 const struct hash_elem *b,
-					 void *aux) {
+					 void *aux UNUSED) {
 	struct supp_pte *pte_a = hash_entry (a, struct supp_pte, hash_elem);
 	struct supp_pte *pte_b = hash_entry (b, struct supp_pte, hash_elem);
-	return hash_bytes (pte_a->address, sizeof (void *)) <
-		   hash_bytes (pte_b->address, sizeof (void *));
+	return hash_bytes (&pte_a->address, sizeof (void *)) <
+		   hash_bytes (&pte_b->address, sizeof (void *));
 }
 
 bool page_table_init (struct hash *h) {

@@ -20,6 +20,7 @@
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 #include "vm/frame.h"
+#include "vm/page.h"
 
 #define FILENAME_MAX_LEN 14
 #define MAX_ARG_SIZE 1024
@@ -323,7 +324,7 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
-  page_table_init (t->h); // activate supplemental page table
+  page_table_init (&t->h); // activate supplemental page table
   process_activate ();
 
   /* Open executable file. */
@@ -594,7 +595,7 @@ setup_stack (void **esp, const char *aux)
   uint8_t *kpage;
   bool success = false;
 
-  success = page_alloc (((uint8_t *) PHYS_BASE) - PGSIZE, true);
+  success = page_alloc (&thread_current ()->h, ((uint8_t *) PHYS_BASE) - PGSIZE, true);
 
   if (success)
     {
