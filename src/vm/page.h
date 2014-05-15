@@ -3,6 +3,7 @@
 
 #include "lib/stdbool.h"
 #include "lib/kernel/hash.h"
+#include "devices/block.h"
 
 /* On a page fault, the kernel looks up the virtual page that faulted in the
  * supplemental page table to find out what data should be there. This means
@@ -11,13 +12,21 @@
  * about that data.
  */
 
+enum data_loc
+  {
+    DISK,
+    ZEROES,
+    SWAP
+  };
 
 bool supp_pt_init (struct hash *h);
 void supp_pt_destroy (struct hash *h);
 
 // initialize (in the supplemental page table) a virtual page at (virtual)
-// address upage
-bool page_alloc (struct hash *h, void *upage, bool writable);
+// address upage, backed by data from the given sector on the block
+bool page_alloc (struct hash *h, void *upage, enum data_loc loc,
+				 struct block *block, block_sector_t sector,
+				 bool writable);
 
 // handle a page fault (obtain a frame, fetch the right data into the frame,
 // point the VA to the frame, and return success)

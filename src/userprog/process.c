@@ -615,7 +615,8 @@ setup_stack (void **esp, const char *aux)
   bool success = false;
 
   success = page_alloc (&thread_current ()->supp_pt,
-                        ((uint8_t *) PHYS_BASE) - PGSIZE, true);
+                        ((uint8_t *) PHYS_BASE) - PGSIZE, ZEROES,
+                        NULL, 0, true);
 
   if (success)
     {

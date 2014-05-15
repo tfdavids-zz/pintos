@@ -14,14 +14,6 @@
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
 
-// where is the data?
-enum data_loc
-  {
-    DISK,
-    ZEROES,
-    SWAP
-  };
-
 static unsigned supp_pt_hash_func (const struct hash_elem *e, void *aux);
 static bool supp_pt_less_func (const struct hash_elem *a,
   const struct hash_elem *b, void *aux);
@@ -37,13 +29,9 @@ struct supp_pte
 
     enum data_loc loc;
 
-    // if the page should be on disk, we need this
-    struct file *file;
-    off_t start;
-
-    // if the page should be on swap, we need something like this
-    // just a placeholder for now (I don't know what it should look like)
-    void *swap;
+    // for pages on disk or swap, we need this
+    struct block *block;
+    block_sector_t sector;
 
     struct hash_elem hash_elem;
   };
@@ -71,10 +59,12 @@ static void
 supp_pt_free_func(struct hash_elem *e, void *aux)
 {
   struct supp_pte *pte = hash_entry(e, struct supp_pte, hash_elem);
+  /*
   if (pte->file)
     {
       file_close (pte->file);
     }
+  */
   free (pte);
 }
 
@@ -108,18 +98,17 @@ supp_pte_lookup (struct hash *h, void *address)
 static void
 supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage)
 {
+  int i;
   switch (e->loc)
     {
       case DISK:
-        // map from disk to kpage
-        ASSERT (false);
+      case SWAP:
+      	for (i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE)
+        	block_read (e->block, e->sector + i / BLOCK_SECTOR_SIZE,
+        				(char *)kpage + i);
         break;
       case ZEROES:
         memset (kpage, 0, PGSIZE);
-        break;
-      case SWAP:
-        // map from swap to kpage
-        ASSERT (false);
         break;
       default:
         // SHOULD NEVER GET HERE
@@ -127,9 +116,11 @@ supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage)
     }
 }
 
-// TODO: need to change interface for disk (and swap?) pages
+// TODO: verify interface is working for disk and swap pages
 bool
-page_alloc (struct hash *h, void *upage, bool writable)
+page_alloc (struct hash *h, void *upage, enum data_loc loc,
+			struct block *block, block_sector_t sector,
+			bool writable)
 {
   struct supp_pte *e = malloc (sizeof (struct supp_pte));
   if (!e)
@@ -138,8 +129,10 @@ page_alloc (struct hash *h, void *upage, bool writable)
     }
 
   e->address = upage;
-  e->loc = ZEROES;
-  e->file = NULL;
+  e->loc = loc;
+  e->block = block;
+  e->sector = sector;
+  e->writable = writable;
 
   hash_insert (h, &e->hash_elem);
   return true;
