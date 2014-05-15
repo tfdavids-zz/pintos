@@ -526,34 +526,36 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      if (page_read_bytes == 0) {
-
-      } else if (page_zero_bytes == 0) {
-
-      } else {
-
-      }
-
-      uint8_t *kpage = frame_alloc (upage); // TODO: use page_alloc instead (nontrivial)
-      if (kpage == NULL)
-        return false;
-
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
+      bool success;
+      if (page_read_bytes == 0)
         {
-          frame_free (kpage);
-          return false; 
+          success = page_alloc (&thread_current ()->supp_pt, upage, ZEROES,
+                                NULL, 0, NULL, 0, writable);
         }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable)) 
+      else if (page_zero_bytes == 0)
         {
-          frame_free (kpage);
-          return false; 
+          success = page_alloc (&thread_current ()->supp_pt, upage, DISK,
+                                NULL, 0, file, ofs, writable);
+        }
+      else
+        {
+          success = page_alloc (&thread_current ()->supp_pt, upage, ZEROES,
+                                NULL, 0, NULL, 0, writable);
+          if (!success)
+            return false;
+
+          success = page_handle_fault (&thread_current ()->supp_pt, upage);
+          if (!success)
+            return false;
+            // TODO: do we need to do something if this fails?
+
+          void *kpage = pagedir_get_page (thread_current ()->pagedir, upage);
+
+          file_read_at (file, kpage, page_read_bytes, ofs);
         }
 
       /* Advance. */
+      ofs += PGSIZE;
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
