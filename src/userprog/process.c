@@ -526,6 +526,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
+      if (page_read_bytes == 0) {
+
+      } else if (page_zero_bytes == 0) {
+
+      } else {
+
+      }
+
       uint8_t *kpage = frame_alloc (upage); // TODO: use page_alloc instead (nontrivial)
       if (kpage == NULL)
         return false;
@@ -616,7 +624,7 @@ setup_stack (void **esp, const char *aux)
 
   success = page_alloc (&thread_current ()->supp_pt,
                         ((uint8_t *) PHYS_BASE) - PGSIZE, ZEROES,
-                        NULL, 0, true);
+                        NULL, 0, NULL, 0, true);
 
   if (success)
     {

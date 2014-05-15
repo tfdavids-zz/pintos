@@ -29,9 +29,13 @@ struct supp_pte
 
     enum data_loc loc;
 
-    // for pages on disk or swap, we need this
+    // for pages on swap, we need this
     struct block *block;
     block_sector_t sector;
+
+    // and for pages on disk, we need this
+    struct file *file;
+    off_t start;
 
     struct hash_elem hash_elem;
   };
@@ -102,6 +106,8 @@ supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage)
   switch (e->loc)
     {
       case DISK:
+        file_read_at (e->file, kpage, PGSIZE, e->start);
+        break;
       case SWAP:
       	for (i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE)
         	block_read (e->block, e->sector + i / BLOCK_SECTOR_SIZE,
@@ -120,6 +126,7 @@ supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage)
 bool
 page_alloc (struct hash *h, void *upage, enum data_loc loc,
 			struct block *block, block_sector_t sector,
+			struct file *file, off_t start,
 			bool writable)
 {
   struct supp_pte *e = malloc (sizeof (struct supp_pte));
@@ -132,7 +139,29 @@ page_alloc (struct hash *h, void *upage, enum data_loc loc,
   e->loc = loc;
   e->block = block;
   e->sector = sector;
+  e->file = file;
+  e->start = start;
   e->writable = writable;
+
+  // for debugging: make sure we've set the right variables
+  // TODO: probably don't need this in the final version
+  switch (e->loc)
+    {
+      case DISK:
+        ASSERT (e->file);
+        break;
+      case SWAP:
+        ASSERT (e->block);
+        break;
+      case ZEROES:
+        ASSERT (!e->file);
+        ASSERT (!e->block);
+        break;
+      default:
+        // should never get here
+        ASSERT (false);
+        break;
+    }
 
   hash_insert (h, &e->hash_elem);
   return true;
