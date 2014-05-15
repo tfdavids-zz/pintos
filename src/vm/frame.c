@@ -26,22 +26,26 @@ void *
 frame_alloc (void *upage)
 {
   void *kpage = palloc_get_page (PAL_USER);
-  
+
   ASSERT (kpage != NULL); // TODO: implement swapping
 
   // now record this in our frame table
   struct frame *frame = malloc (sizeof (struct frame));
-  if (!frame) {
-    return NULL; // error!
-  }
-  frame->kpage = page;
+  if (!frame)
+    {
+      return NULL; // error!
+    }
+  frame->kpage = kpage;
+  frame->upage = upage;
+  /* TODO: Process identifier. */
   list_push_back (&ftable, &frame->elem); // add frame to our frame table
 
   return kpage;
 }
 
 void
-frame_free (void *kpage) {
+frame_free (void *kpage)
+{
   palloc_free_page (kpage);
   // TODO
 }

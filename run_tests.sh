@@ -1,4 +1,4 @@
-cd src/vm/build
+cd src/vm/
 if [[ $1 =~ ^[0-9]+$ ]]; then
     make clean
     test=`ls ../../tests/vm/*.ck | cut -c 7- | cut -f1 -d "." | uniq | sed -n "${1}p"`

@@ -285,6 +285,8 @@ thread_create (const char *name, int priority,
       t->fd_table = calloc (t->fd_table_size, sizeof (struct file *));
       if (t->fd_table == NULL)
         {
+          list_remove (&cs->elem);
+          free (cs);
           return TID_ERROR;
         }
       t->fd_table_tail_idx = 1;

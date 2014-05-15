@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "lib/kernel/hash.h"
 #include "userprog/fdtable.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
@@ -163,6 +164,7 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  struct hash *supp_pt;
 
   printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
 
@@ -218,6 +220,16 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+    /* TODO: Verify that we are freeing all that we should free, and that
+             there are no odd race conditions or anything here. */
+    /* TODO: Do we need to reclaim this process' pages? And update
+             the frame table? Probably ... */
+    supp_pt = &cur->supp_pt;
+    if (supp_pt != NULL)
+      {
+        supp_pt_destroy (supp_pt);
+      }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -323,8 +335,16 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
-    goto done;
-  page_table_init (&t->supp_pt); // activate supplemental page table
+    {
+      goto done;
+    }
+
+  /* Allocate and activate supplemental page directory. */
+  if (!supp_pt_init (&t->supp_pt))
+    {
+      goto done;
+    }
+
   process_activate ();
 
   /* Open executable file. */
@@ -506,7 +526,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = frame_alloc (); // TODO: use page_alloc instead (nontrivial)
+      uint8_t *kpage = frame_alloc (upage); // TODO: use page_alloc instead (nontrivial)
       if (kpage == NULL)
         return false;
 
@@ -592,7 +612,6 @@ setup_args (void **esp, const char *aux)
 static bool
 setup_stack (void **esp, const char *aux) 
 {
-  uint8_t *kpage;
   bool success = false;
 
   success = page_alloc (&thread_current ()->supp_pt,
