@@ -525,31 +525,39 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      bool success;
       if (page_read_bytes == 0)
         {
-          success = page_alloc (&thread_current ()->supp_pt, upage, ZEROES,
-                                NULL, 0, NULL, 0, writable);
+          if (!page_alloc (&thread_current ()->supp_pt, upage, ZEROES,
+                                NULL, 0, NULL, 0, writable))
+            {
+              /* TODO: For each of these error conditions: Do we need
+                 to free the memory we previously allocated here? */
+              return false;
+            }
         }
       else if (page_zero_bytes == 0)
         {
-          success = page_alloc (&thread_current ()->supp_pt, upage, DISK,
-                                NULL, 0, file, ofs, writable);
+          if (!page_alloc (&thread_current ()->supp_pt, upage, DISK,
+                          NULL, 0, file, ofs, writable))
+            {
+              return false;
+            }
         }
       else
         {
-          success = page_alloc (&thread_current ()->supp_pt, upage, ZEROES,
-                                NULL, 0, NULL, 0, writable);
-          if (!success)
-            return false;
-
-          success = page_handle_fault (&thread_current ()->supp_pt, upage);
-          if (!success)
-            return false;
-            // TODO: do we need to do something if this fails?
-
+          if ((!page_alloc (&thread_current ()->supp_pt, upage, ZEROES, NULL,
+                            0, NULL, 0, writable)) ||
+                            !(page_handle_fault (
+                            &thread_current ()->supp_pt, upage)))
+            {
+              return false;
+            }
+          
           void *kpage = pagedir_get_page (thread_current ()->pagedir, upage);
-
+          if (kpage == NULL)
+            {
+              return false;
+            }
           file_read_at (file, kpage, page_read_bytes, ofs);
         }
 
@@ -560,6 +568,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       upage += PGSIZE;
     }
 
+   /* TODO: Why is this here? */
   file_seek (file, ofs);
   return true;
 }
@@ -571,7 +580,7 @@ setup_args (void **esp, const char *aux)
   char *token, *save_ptr;
   int argc = 0;
 
-  /* Limit total length of args to one page */
+  /* Limit total length of aux to one page */
   if (strlen(aux) > MAX_ARG_SIZE)
     return false;
 
@@ -624,17 +633,15 @@ static bool
 setup_stack (void **esp, const char *aux) 
 {
   bool success = false;
+  struct thread *t = thread_current ();
+  void *upage = (void *) (PHYS_BASE - PGSIZE);
 
-  success = page_alloc (&thread_current ()->supp_pt,
-                        ((uint8_t *) PHYS_BASE) - PGSIZE, ZEROES,
-                        NULL, 0, NULL, 0, true);
-
-  if (success)
+  if (page_alloc (&t->supp_pt, upage, ZEROES, NULL, 0, NULL, 0, true) &&
+                  page_handle_fault (&t->supp_pt, upage))
     {
       *esp = PHYS_BASE;
       success = setup_args(esp, aux);
     }
-
   return success;
 }
 
