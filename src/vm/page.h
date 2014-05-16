@@ -35,6 +35,9 @@ bool page_alloc (struct hash *h, void *upage, enum data_loc loc,
 // point the VA to the frame, and return success)
 bool page_handle_fault (struct hash *h, void *upage);
 
+// check and see if a page has an entry in h
+bool page_is_valid (struct hash *h, void *upage);
+
 // free a virtual page with address upage
 /* TODO: Do we need this? Also, a conceptual question -- when a user invokes
   'free' on some memory he has, should we / how would we go about updating the

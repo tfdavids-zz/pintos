@@ -94,6 +94,8 @@ supp_pte_lookup (struct hash *h, void *address)
 
   // find the element in our hash table corresponding to this page
   struct hash_elem *e = hash_find (h, &key.hash_elem);
+  if (!e)
+    return NULL;
 
   struct supp_pte *pte = hash_entry (e, struct supp_pte, hash_elem);
   return pte;
@@ -168,6 +170,12 @@ page_alloc (struct hash *h, void *upage, enum data_loc loc,
 }
 
 bool
+page_is_valid (struct hash *h, void *upage)
+{
+  return supp_pte_lookup (h, upage) != NULL;
+}
+
+bool
 page_handle_fault (struct hash *h, void *upage)
 {
   struct supp_pte *e = supp_pte_lookup (h, upage);
@@ -177,7 +185,7 @@ page_handle_fault (struct hash *h, void *upage)
   if (!kpage)
     {
       /* TODO: Swapping. */
-      ASSERT("false");
+      ASSERT (false);
     }
 
   supp_pte_fetch (h, e, kpage);
