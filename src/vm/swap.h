@@ -3,7 +3,7 @@
 
 void swap_init (void);
 
-size_t swap_writes_page (void *upage);
+size_t swap_write_page (void *upage);
 
 void swap_load_page (size_t swap_index, void *upage);
 
