@@ -171,6 +171,7 @@ bool
 page_handle_fault (struct hash *h, void *upage)
 {
   struct supp_pte *e = supp_pte_lookup (h, upage);
+  ASSERT (pagedir_get_page (t->pagedir, upage) == NULL);
   void *kpage = frame_alloc (upage);
   if (!kpage)
     {
