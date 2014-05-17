@@ -146,12 +146,21 @@ page_fault (struct intr_frame *f)
   /* Count page faults. */
   page_fault_cnt++;
 
+  /* TODO: Stack growth. */
   /* Determine cause. */
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* Handle page fault by loading page into memory */
+  /* Terminate the user process if it attempts to write to a read-only
+     page. */
+  if (!not_present)
+    {
+      f->cs = SEL_UCSEG;
+      kill (f);
+    }
+
+  /* Otherwise, handle the page fault by loading the page into memory. */
   void *upage = pg_round_down (fault_addr);
   bool success = page_handle_fault (&thread_current ()->supp_pt, upage);
   if (success) {
