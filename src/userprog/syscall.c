@@ -159,7 +159,7 @@ is_valid_ptr (const void *ptr)
 {
   return (ptr != NULL) &&
     (is_user_vaddr (ptr)) &&
-    (page_is_valid (&thread_current ()->supp_pt, ptr));
+    (supp_pt_page_exists (&thread_current ()->supp_pt, ptr));
 }
 
 /* Returns true iff every address within the range
@@ -175,7 +175,6 @@ is_valid_range (const void *ptr, size_t len)
           return false;
         }
     }
-
   return true;
 }
 

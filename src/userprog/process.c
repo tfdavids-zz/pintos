@@ -534,6 +534,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
+  struct thread *t = thread_current ();
 
   while (read_bytes > 0 || zero_bytes > 0) 
     {
@@ -546,43 +547,28 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Get a page of memory. */
       if (page_read_bytes == 0)
         {
-          if (!page_alloc (&thread_current ()->supp_pt, upage, ZEROES,
-                                NULL, 0, NULL, 0, writable))
+          if (!supp_pt_page_calloc (&t->supp_pt, upage, writable))
             {
               /* TODO: For each of these error conditions: Do we need
                  to free the memory we previously allocated here? */
               return false;
-            }
+          }
         }
       else if (page_zero_bytes == 0)
         {
-          if (!page_alloc (&thread_current ()->supp_pt, upage, DISK,
-                          NULL, 0, file, ofs, writable))
+          if (!supp_pt_page_alloc_file (&t->supp_pt,
+            upage, file, ofs, PGSIZE, writable))
             {
               return false;
             }
         }
       else
         {
-          if (!page_alloc (&thread_current ()->supp_pt, upage, ZEROES, NULL,
-                            0, NULL, 0, writable) ||
-                            !page_handle_fault (
-                            &thread_current ()->supp_pt, upage))
-             {
-               return false;
-             }
-
-          /* Write through the kernel address, since the user virtual address
-             should not be writable. */
-          void *kpage = pagedir_get_page (thread_current ()->pagedir, upage);
-          if (kpage == NULL)
+          if (!supp_pt_page_alloc_file (&t->supp_pt, upage, file, ofs,
+            page_read_bytes, writable))
             {
               return false;
             }
-
-          lock_acquire (&filesys_lock);
-          file_read_at (file, kpage, page_read_bytes, ofs);
-          lock_release (&filesys_lock);
         }
 
       /* Advance. */
@@ -658,8 +644,8 @@ setup_stack (void **esp, const char *aux)
   struct thread *t = thread_current ();
   void *upage = (void *) (PHYS_BASE - PGSIZE);
 
-  if (page_alloc (&t->supp_pt, upage, ZEROES, NULL, 0, NULL, 0, true) &&
-                  page_handle_fault (&t->supp_pt, upage))
+  if (supp_pt_page_calloc (&t->supp_pt, upage, true) &&
+    page_handle_fault (&t->supp_pt, upage))
     {
       *esp = PHYS_BASE;
       success = setup_args(esp, aux);

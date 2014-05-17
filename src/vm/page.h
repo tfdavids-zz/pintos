@@ -24,24 +24,27 @@ enum data_loc
 bool supp_pt_init (struct hash *h);
 void supp_pt_destroy (struct hash *h);
 
-// initialize (in the supplemental page table) a virtual page at (virtual)
-// address upage, backed by data from the given sector on the block
-bool page_alloc (struct hash *h, void *upage, enum data_loc loc,
-			     struct block *block, block_sector_t sector,
-			     struct file *file, off_t start,
-			     bool writable);
+/* Hook the provided upage into a user process' supplementary page
+   table. */
+bool supp_pt_page_alloc_file (struct hash *h, void *upage, struct file *file,
+                            off_t start, size_t bytes, bool writable);
+bool supp_pt_page_calloc (struct hash *h, void *upage, bool writable);
+
+/* Creates a mapping between the provided upage and to an allocated
+   kpage; returns the kpage. */
+void *page_force_load (struct hash *h, void *upage);
 
 // handle a page fault (obtain a frame, fetch the right data into the frame,
 // point the VA to the frame, and return success)
 bool page_handle_fault (struct hash *h, void *upage);
 
 // check and see if a page has an entry in h
-bool page_is_valid (struct hash *h, void *upage);
+bool supp_pt_page_exists (struct hash *h, void *upage);
 
 // free a virtual page with address upage
 /* TODO: Do we need this? Also, a conceptual question -- when a user invokes
   'free' on some memory he has, should we / how would we go about updating the
   supplemental page table? */
-void page_free (struct hash *h, void *upage);
+void supp_pt_page_free (struct hash *h, void *upage);
 
 #endif /* VM_PAGE_H */

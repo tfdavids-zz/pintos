@@ -20,6 +20,8 @@ static bool supp_pt_less_func (const struct hash_elem *a,
 static void supp_pt_free_func(struct hash_elem *e, void *aux);
 static struct supp_pte *supp_pte_lookup (struct hash *h, void *address);
 static void supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage);
+static bool supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
+  struct file *file, off_t start, size_t bytes, bool writable);
 
 // struct for an entry in the supplemental page table
 struct supp_pte
@@ -36,6 +38,7 @@ struct supp_pte
     // and for pages on disk, we need this
     struct file *file;
     off_t start;
+    size_t bytes;
 
     struct hash_elem hash_elem;
   };
@@ -57,18 +60,13 @@ supp_pt_less_func (const struct hash_elem *a, const struct hash_elem *b,
        hash_bytes (&pte_b->address, sizeof (void *));
 }
 
-/* TODO: Verify that this is correct (in particular, verify that
- we should close the file. */
+/* TODO: Verify that this frees everything that should be freed. */
+/* TODO: Will there ever be a case where the file is not closed by
+   the process upon exit? */
 static void
 supp_pt_free_func(struct hash_elem *e, void *aux)
 {
   struct supp_pte *pte = hash_entry(e, struct supp_pte, hash_elem);
-  /*
-  if (pte->file)
-    {
-      file_close (pte->file);
-    }
-  */
   free (pte);
 }
 
@@ -108,7 +106,10 @@ supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage)
   switch (e->loc)
     {
       case DISK:
-        file_read_at (e->file, kpage, PGSIZE, e->start);
+        lock_acquire (&filesys_lock);
+        file_read_at (e->file, kpage, e->bytes, e->start);
+        lock_release (&filesys_lock);
+        memset ((uint8_t *)kpage + e->bytes, 0, PGSIZE - e->bytes);
         break;
       case SWAP:
       	for (i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE)
@@ -119,17 +120,27 @@ supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage)
         memset (kpage, 0, PGSIZE);
         break;
       default:
-        // SHOULD NEVER GET HERE
-        ASSERT (false);
+        NOT_REACHED () ;
     }
 }
 
 // TODO: verify interface is working for disk and swap pages
 bool
-page_alloc (struct hash *h, void *upage, enum data_loc loc,
-			struct block *block, block_sector_t sector,
-			struct file *file, off_t start,
-			bool writable)
+supp_pt_page_alloc_file (struct hash *h, void *upage,
+  struct file *file, off_t start, size_t bytes, bool writable)
+{
+  return supp_pt_page_alloc (h, upage, DISK, file, start, bytes, writable);
+}
+
+bool
+supp_pt_page_calloc (struct hash *h, void *upage, bool writable)
+{
+  return supp_pt_page_alloc (h, upage, ZEROES, NULL, 0, 0, writable);
+}
+
+static bool
+supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
+  struct file *file, off_t start, size_t bytes, bool writable)
 {
   struct supp_pte *e = malloc (sizeof (struct supp_pte));
   if (!e)
@@ -139,38 +150,18 @@ page_alloc (struct hash *h, void *upage, enum data_loc loc,
 
   e->address = upage;
   e->loc = loc;
-  e->block = block;
-  e->sector = sector;
   e->file = file;
   e->start = start;
+  e->bytes = bytes;
   e->writable = writable;
 
-  // for debugging: make sure we've set the right variables
-  // TODO: probably don't need this in the final version
-  switch (e->loc)
-    {
-      case DISK:
-        ASSERT (e->file);
-        break;
-      case SWAP:
-        ASSERT (e->block);
-        break;
-      case ZEROES:
-        ASSERT (!e->file);
-        ASSERT (!e->block);
-        break;
-      default:
-        // should never get here
-        ASSERT (false);
-        break;
-    }
-
-  hash_insert (h, &e->hash_elem);
-  return true;
+  /* There should not already exist a supp_pte
+     for this upage in the supplementary page table. */
+  return hash_insert (h, &e->hash_elem) == NULL;
 }
 
 bool
-page_is_valid (struct hash *h, void *upage)
+supp_pt_page_exists (struct hash *h, void *upage)
 {
   return supp_pte_lookup (h, upage) != NULL;
 }
