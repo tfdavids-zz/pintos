@@ -13,6 +13,7 @@
 #include "threads/palloc.h"
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
+#include "vm/swap.h"
 
 static unsigned supp_pt_hash_func (const struct hash_elem *e, void *aux);
 static bool supp_pt_less_func (const struct hash_elem *a,
@@ -32,8 +33,7 @@ struct supp_pte
     enum data_loc loc;
 
     // for pages on swap, we need this
-    struct block *block;
-    block_sector_t sector;
+    size_t swap_index;
 
     // and for pages on disk, we need this
     struct file *file;
@@ -112,9 +112,7 @@ supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage)
         memset ((uint8_t *)kpage + e->bytes, 0, PGSIZE - e->bytes);
         break;
       case SWAP:
-      	for (i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE)
-        	block_read (e->block, e->sector + i / BLOCK_SECTOR_SIZE,
-        				(char *)kpage + i);
+        swap_load_page (e->swap_index, kpage);
         break;
       case ZEROES:
         memset (kpage, 0, PGSIZE);

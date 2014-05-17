@@ -47,8 +47,8 @@ size_t swap_write_page (void *upage)
   return free_slot_index;
 }
 
-
-bool swap_load_page (size_t slot_index, void *upage)
+/* Load to kpage since upage is not yet present. */
+bool swap_load_page (size_t slot_index, void *kpage)
 {
   if (slot_index > num_swap_slots ||
       !bitmap_test(swap_slots, slot_index))
@@ -60,7 +60,7 @@ bool swap_load_page (size_t slot_index, void *upage)
     {
       block_read (swap_device,
                   slot_index * sectors_per_page + i,
-                  upage + i * BLOCK_SECTOR_SIZE);
+                  kpage + i * BLOCK_SECTOR_SIZE);
     }
   bitmap_set (swap_slots, slot_index, false);
 
