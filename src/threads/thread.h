@@ -36,6 +36,8 @@ struct child_state
     struct semaphore sema;              /* For synch between parent/child */
   };
 
+struct lock filesys_lock;
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The

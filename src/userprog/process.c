@@ -202,7 +202,10 @@ process_exit (void)
       }
     }
   free (cur->fd_table);
+  
+  lock_acquire (&filesys_lock);
   file_close (cur->executable);
+  lock_release (&filesys_lock);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -348,7 +351,9 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
   process_activate ();
 
   /* Open executable file. */
+  lock_acquire (&filesys_lock);
   file = filesys_open (file_name);
+  lock_release (&filesys_lock);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -357,6 +362,7 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
 
   /* Remember the file and deny writes to it. */
   t->executable = file;
+  lock_acquire (&filesys_lock);
   file_deny_write (t->executable);
 
   /* Read and verify executable header. */
@@ -371,6 +377,7 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
       printf ("load: %s: error loading executable\n", file_name);
       goto done; 
     }
+    lock_release (&filesys_lock);
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
@@ -378,12 +385,15 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
     {
       struct Elf32_Phdr phdr;
 
+      lock_acquire (&filesys_lock);
       if (file_ofs < 0 || file_ofs > file_length (file))
         goto done;
       file_seek (file, file_ofs);
 
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
         goto done;
+      lock_release (&filesys_lock);
+
       file_ofs += sizeof phdr;
       switch (phdr.p_type) 
         {
@@ -442,6 +452,10 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
  done:
   /* We arrive here whether the load is successful or not.
    * We must keep the file open in order to deny writes to it. */
+  if (lock_held_by_current_thread (&filesys_lock))
+    {
+      lock_release (&filesys_lock);
+    }
   return success;
 }
 
@@ -459,8 +473,13 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
     return false; 
 
   /* p_offset must point within FILE. */
+  lock_acquire (&filesys_lock);
   if (phdr->p_offset > (Elf32_Off) file_length (file)) 
-    return false;
+    {
+      lock_release (&filesys_lock);
+      return false;
+    }
+  lock_release (&filesys_lock);
 
   /* p_memsz must be at least as big as p_filesz. */
   if (phdr->p_memsz < phdr->p_filesz) 
@@ -545,20 +564,25 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
         }
       else
         {
-          if ((!page_alloc (&thread_current ()->supp_pt, upage, ZEROES, NULL,
-                            0, NULL, 0, writable)) ||
-                            !(page_handle_fault (
-                            &thread_current ()->supp_pt, upage)))
-            {
-              return false;
-            }
-          
+          if (!page_alloc (&thread_current ()->supp_pt, upage, ZEROES, NULL,
+                            0, NULL, 0, writable) ||
+                            !page_handle_fault (
+                            &thread_current ()->supp_pt, upage))
+             {
+               return false;
+             }
+
+          /* Write through the kernel address, since the user virtual address
+             should not be writable. */
           void *kpage = pagedir_get_page (thread_current ()->pagedir, upage);
           if (kpage == NULL)
             {
               return false;
             }
+
+          lock_acquire (&filesys_lock);
           file_read_at (file, kpage, page_read_bytes, ofs);
+          lock_release (&filesys_lock);
         }
 
       /* Advance. */
@@ -568,8 +592,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       upage += PGSIZE;
     }
 
-   /* TODO: Why is this here? */
-  file_seek (file, ofs);
   return true;
 }
 
