@@ -38,7 +38,7 @@ static void sys_seek (struct intr_frame *f, int fd, unsigned position);
 static void sys_tell (struct intr_frame *f, int fd);
 static void sys_close (struct intr_frame *f, int fd);
 static void sys_mmap (struct intr_frame *f, int fd, void *addr);
-static void sys_munmmap (struct intr_frame *f, mapid_t mapping);
+static void sys_munmap (struct intr_frame *f, mapid_t mapping);
 
 static bool is_valid_ptr (const void *ptr);
 static bool is_valid_range (const void *ptr, size_t len);
@@ -144,7 +144,11 @@ syscall_handler (struct intr_frame *f UNUSED)
         sys_close (f, (int)args[0]);
         break;
       case SYS_MMAP:
+        sys_mmap (f, (int)args[0], (void *)args[1]);
+        break;
       case SYS_MUNMAP:
+        sys_munmap (f, (mapid_t)args[0]);
+        break;
       case SYS_CHDIR:
       case SYS_MKDIR:
       case SYS_READDIR:
@@ -421,8 +425,11 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
       return;
     }
 
+  /* Reopen the file for this process. */
+  file = file_reopen (file);
+
   /* Ensure that addr is acceptable. */
-  if (addr == NULL || pg_ofs (addr) != 0)
+  if (addr == NULL || pg_ofs (addr) != 0 || !is_user_vaddr (addr))
     {
       f->eax = MAP_FAILED;
       return; 
@@ -476,12 +483,12 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
       }
 
     /* TODO: Debugging. */
-    ASSERT (bytes == 0);
+   // ASSERT (bytes == 0);
     f->eax = mapid;
 }
 
 static void
-sys_munmmap (struct intr_frame *f, mapid_t mapping)
+sys_munmap (struct intr_frame *f, mapid_t mapping)
 {
-  supp_pt_munmap (&thread_current ()->supp_pt, (void *)mapping);
+  exit_on (f, !supp_pt_munmap (&thread_current ()->supp_pt, (void *)mapping));
 }
