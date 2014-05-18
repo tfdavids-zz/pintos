@@ -39,12 +39,12 @@ void *page_force_load (struct hash *h, void *upage);
 bool page_handle_fault (struct hash *h, void *upage);
 
 // check and see if a page has an entry in h
-bool supp_pt_page_exists (struct hash *h, void *upage);
+bool supp_pt_page_exists (struct hash *h, const void *upage);
 
 // free a virtual page with address upage
 /* TODO: Do we need this? Also, a conceptual question -- when a user invokes
   'free' on some memory he has, should we / how would we go about updating the
   supplemental page table? */
-void supp_pt_page_free (struct hash *h, void *upage);
+bool supp_pt_page_free (struct hash *h, void *upage);
 
 #endif /* VM_PAGE_H */

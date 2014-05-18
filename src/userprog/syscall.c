@@ -12,6 +12,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "lib/user/syscall.h"
+#include "vm/page.h"
 
 /* A table mapping syscall numbers to the number of arguments
    their corresponding system calls take. */
@@ -36,6 +37,9 @@ static void sys_write (struct intr_frame *f, int fd, const void *buffer,
 static void sys_seek (struct intr_frame *f, int fd, unsigned position);
 static void sys_tell (struct intr_frame *f, int fd);
 static void sys_close (struct intr_frame *f, int fd);
+static void sys_mmap (struct intr_frame *f, int fd, void *addr);
+static void sys_munmmap (struct intr_frame *f, mapid_t mapping);
+
 static bool is_valid_ptr (const void *ptr);
 static bool is_valid_range (const void *ptr, size_t len);
 static bool is_valid_string (const char *ptr);
@@ -384,4 +388,16 @@ sys_close (struct intr_frame *f, int fd)
   lock_acquire (&filesys_lock);
   exit_on_file (f, !fd_table_close (fd));
   lock_release (&filesys_lock);
+}
+
+static void
+sys_mmap (struct intr_frame *f, int fd, void *addr)
+{
+
+}
+
+static void
+sys_munmmap (struct intr_frame *f, mapid_t mapping)
+{
+
 }

@@ -10,6 +10,8 @@
 #include "threads/loader.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/thread.h"
+#include "vm/page.h"
 
 /* Page allocator.  Hands out memory in page-size (or
    page-multiple) chunks.  See malloc.h for an allocator that
@@ -119,6 +121,8 @@ palloc_free_multiple (void *pages, size_t page_cnt)
 {
   struct pool *pool;
   size_t page_idx;
+  size_t i;
+  struct thread *t = thread_current ();
 
   ASSERT (pg_ofs (pages) == 0);
   if (pages == NULL || page_cnt == 0)
@@ -139,6 +143,17 @@ palloc_free_multiple (void *pages, size_t page_cnt)
 
   ASSERT (bitmap_all (pool->used_map, page_idx, page_cnt));
   bitmap_set_multiple (pool->used_map, page_idx, page_cnt, false);
+
+  /* Remove the pages from the supplementary page table. We operate
+     on the assumption that the the supplementary page table only
+     holds user pool pages. */
+  if (pool == &user_pool)
+    {
+      for (i = 0; i < page_cnt; i++, pages = (uint8_t *)pages + PGSIZE)
+        {
+          supp_pt_page_free (&t->supp_pt, pages);
+        }
+    }
 }
 
 /* Frees the page at PAGE. */
