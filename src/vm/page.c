@@ -18,30 +18,9 @@ static unsigned supp_pt_hash_func (const struct hash_elem *e, void *aux);
 static bool supp_pt_less_func (const struct hash_elem *a,
   const struct hash_elem *b, void *aux);
 static void supp_pt_free_func(struct hash_elem *e, void *aux);
-static struct supp_pte *supp_pte_lookup (struct hash *h, void *address);
 static void supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage);
 static bool supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
   struct file *file, off_t start, size_t bytes, bool writable);
-
-// struct for an entry in the supplemental page table
-struct supp_pte
-  {
-    void *address;
-    bool writable;
-
-    enum data_loc loc;
-
-    // for pages on swap, we need this
-    struct block *block;
-    block_sector_t sector;
-
-    // and for pages on disk, we need this
-    struct file *file;
-    off_t start;
-    size_t bytes;
-
-    struct hash_elem hash_elem;
-  };
 
 static unsigned
 supp_pt_hash_func (const struct hash_elem *e, void *aux UNUSED)
@@ -82,7 +61,7 @@ supp_pt_destroy(struct hash *h)
   hash_destroy (h, supp_pt_free_func);
 }
 
-static struct supp_pte *
+struct supp_pte *
 supp_pte_lookup (struct hash *h, void *address)
 {
   address = pg_round_down (address); // round down to page
@@ -102,7 +81,6 @@ supp_pte_lookup (struct hash *h, void *address)
 static void
 supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage)
 {
-  int i;
   switch (e->loc)
     {
       case DISK:
@@ -112,9 +90,8 @@ supp_pte_fetch (struct hash *h, struct supp_pte *e, void *kpage)
         memset ((uint8_t *)kpage + e->bytes, 0, PGSIZE - e->bytes);
         break;
       case SWAP:
-      	for (i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE)
-        	block_read (e->block, e->sector + i / BLOCK_SECTOR_SIZE,
-        				(char *)kpage + i);
+        if (!swap_load_page (e->swap_slot_index, kpage))
+          PANIC ("Unable to load page from swap");
         break;
       case ZEROES:
         memset (kpage, 0, PGSIZE);
@@ -173,11 +150,6 @@ page_handle_fault (struct hash *h, void *upage)
   struct thread *t = thread_current ();
   ASSERT (pagedir_get_page (t->pagedir, upage) == NULL);
   void *kpage = frame_alloc (upage);
-  if (!kpage)
-    {
-      /* TODO: Swapping. */
-      ASSERT (false);
-    }
 
   supp_pte_fetch (h, e, kpage);
   return pagedir_set_page (t->pagedir,

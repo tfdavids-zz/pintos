@@ -21,6 +21,25 @@ enum data_loc
     SWAP
   };
 
+// struct for an entry in the supplemental page table
+struct supp_pte
+  {
+    void *address;
+    bool writable;
+
+    enum data_loc loc;
+
+    // for pages on swap, we need this
+    size_t swap_slot_index;
+
+    // and for pages on disk, we need this
+    struct file *file;
+    off_t start;
+    size_t bytes;
+
+    struct hash_elem hash_elem;
+  };
+
 bool supp_pt_init (struct hash *h);
 void supp_pt_destroy (struct hash *h);
 
@@ -46,5 +65,7 @@ bool supp_pt_page_exists (struct hash *h, void *upage);
   'free' on some memory he has, should we / how would we go about updating the
   supplemental page table? */
 void supp_pt_page_free (struct hash *h, void *upage);
+
+struct supp_pte *supp_pte_lookup (struct hash *h, void *address);
 
 #endif /* VM_PAGE_H */

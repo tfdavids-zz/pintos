@@ -6,14 +6,17 @@
 #include "devices/block.h"
 #include "userprog/pagedir.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 
 static struct block *swap_device;
 static struct bitmap *swap_slots;
+static struct lock swap_slots_lock;
 static size_t sectors_per_page = PGSIZE / BLOCK_SECTOR_SIZE;
 size_t num_swap_slots;
 
 void swap_init (void)
 {
+  lock_init (&swap_slots_lock);
   swap_device = block_get_role (BLOCK_SWAP);
   if (swap_device == NULL)
     PANIC ("No swap device found, can't initialize swap");
@@ -30,7 +33,10 @@ void swap_init (void)
 
 size_t swap_write_page (void *upage)
 {
-  size_t free_slot_index = bitmap_scan (swap_slots, 0, 1, false);
+  //lock_acquire (&swap_slots_lock);
+  size_t free_slot_index = bitmap_scan_and_flip (swap_slots, 0, 1, false);
+  //lock_release (&swap_slots_lock);
+
   if (free_slot_index == BITMAP_ERROR)
     PANIC ("swap is full");
 
@@ -40,9 +46,7 @@ size_t swap_write_page (void *upage)
       block_write (swap_device,
                    free_slot_index * sectors_per_page + i,
                    upage + i * BLOCK_SECTOR_SIZE);
-
     }
-  bitmap_set (swap_slots, free_slot_index, true);
 
   return free_slot_index;
 }
