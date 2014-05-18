@@ -161,6 +161,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 static bool
 is_valid_ptr (const void *ptr)
 {
+  /* TODO: supp_pte can exist but it's possible that ptr is not mapped.
+     this could cause a page fault when ptr is later accessed. */
   return (ptr != NULL) &&
     (is_user_vaddr (ptr)) &&
     (supp_pt_page_exists (&thread_current ()->supp_pt, ptr));
@@ -174,7 +176,7 @@ is_valid_range (const void *ptr, size_t len)
   size_t i;
   for (i = 0; i < len; i++)
     {
-      if (!is_valid_ptr((uint8_t *)ptr + i))
+      if (!is_valid_ptr ((uint8_t *)ptr + i))
         {
           return false;
         }
@@ -393,11 +395,93 @@ sys_close (struct intr_frame *f, int fd)
 static void
 sys_mmap (struct intr_frame *f, int fd, void *addr)
 {
+  int length;
+  size_t num_pages;
+  size_t i;
+  size_t bytes;
+  mapid_t mapid;
+  void *curr_page;
+  struct thread *t = thread_current ();
 
+  /* Ensure that the fd is valid. */
+  struct file *file = fd_table_get_file (fd);
+  if (file == NULL)
+    {
+      f->eax = MAP_FAILED;
+      return;
+    }
+
+  /* Ensure that the file length is positive. */
+  lock_acquire (&filesys_lock);
+  length = file_length (file);
+  lock_release (&filesys_lock);
+  if (length <= 0)
+    {
+      f->eax = MAP_FAILED;
+      return;
+    }
+
+  /* Ensure that addr is acceptable. */
+  if (addr == NULL || pg_ofs (addr) != 0)
+    {
+      f->eax = MAP_FAILED;
+      return; 
+    }
+
+  /* Ensure that there is enough space for the addr. */
+  /* Calculate each page and make sure that none is mapped. */
+  /* TODO: Ensure that the pages do not overlap with other
+           segments (e.g. the stack). */
+  /* TODO: Synchronization (what if someone creates a page
+           after we've determined it does not exist?). */
+  num_pages = ((length - 1) / PGSIZE) + 1;
+  for (i = 0; i < num_pages; i++)
+    {
+      if (supp_pt_page_exists (&t->supp_pt, addr + i * PGSIZE))
+        {
+          f->eax = MAP_FAILED;
+          return;
+        }
+    }
+
+    /* Error checking passes. We can mmap it. */
+    /* TODO: This is a hack, but a very convenient one:
+       Simply choose mapid equal to (mapid_t) addr.
+       Assumes that the size of mapid_t matches the size
+       of pointers. */
+    /* TODO: File permissions? They will be exercised
+             when the memory is unmapped and written back
+             to the file, but it would be nice to preemptively
+             set page permissions here. */
+    mapid = (mapid_t) addr;
+    curr_page = addr;
+    for (i = 0; i < num_pages; i++)
+      {
+        bytes = length > PGSIZE ? PGSIZE : length;
+
+        /* TODO: Debugging. */
+        ASSERT (bytes > 0);
+
+        if (!supp_pt_page_alloc_file (&t->supp_pt, curr_page,
+          file, i * PGSIZE, bytes, mapid, true))
+          {
+            /* Allocation failed. */
+            /* TODO: Clean up the pages we just allocated. */
+            f->eax = MAP_FAILED;
+            return;
+          }
+
+        length -= bytes;
+        curr_page = (void *)((uintptr_t)curr_page + PGSIZE);
+      }
+
+    /* TODO: Debugging. */
+    ASSERT (bytes == 0);
+    f->eax = mapid;
 }
 
 static void
 sys_munmmap (struct intr_frame *f, mapid_t mapping)
 {
-
+  supp_pt_munmap (&thread_current ()->supp_pt, (void *)mapping);
 }

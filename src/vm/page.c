@@ -5,7 +5,6 @@
 #include "lib/stdbool.h"
 #include "lib/debug.h"
 #include "lib/kernel/hash.h"
-#include "lib/user/syscall.h"
 #include "filesys/off_t.h"
 #include "filesys/file.h"
 #include "threads/vaddr.h"
@@ -20,15 +19,16 @@ static unsigned supp_pt_hash_func (const struct hash_elem *e, void *aux);
 static bool supp_pt_less_func (const struct hash_elem *a,
   const struct hash_elem *b, void *aux);
 static void supp_pt_free_func(struct hash_elem *e, void *aux);
-static struct supp_pte *supp_pt_lookup (struct hash *h, void *address);
+static struct supp_pte *supp_pt_lookup (struct hash *h, const void *address);
 static void supp_pt_fetch (struct supp_pte *e, void *kpage);
-static bool supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
-  struct file *file, off_t start, size_t bytes, bool writable);
+static struct supp_pte *supp_pt_page_alloc (struct hash *h, void *upage,
+  enum data_loc loc, struct file *file, off_t start, size_t bytes,
+  mapid_t mapid, bool writable);
 
 // struct for an entry in the supplemental page table
 struct supp_pte
   {
-    void *address;
+    const void *address;
     bool writable;
 
     enum data_loc loc;
@@ -86,7 +86,7 @@ supp_pt_destroy(struct hash *h)
 }
 
 static struct supp_pte *
-supp_pt_lookup (struct hash *h, void *address)
+supp_pt_lookup (struct hash *h, const void *address)
 {
   address = pg_round_down (address); // round down to page
   
@@ -126,28 +126,30 @@ supp_pt_fetch (struct supp_pte *e, void *kpage)
     }
 }
 
-// TODO: verify interface is working for disk and swap pages
 bool
 supp_pt_page_alloc_file (struct hash *h, void *upage,
-  struct file *file, off_t start, size_t bytes, bool writable)
+  struct file *file, off_t start, size_t bytes, mapid_t mapid, bool writable)
 {
-  return supp_pt_page_alloc (h, upage, DISK, file, start, bytes, writable);
+  return supp_pt_page_alloc (h, upage, DISK, file, start, bytes,
+    mapid, writable) != NULL;
 }
 
 bool
 supp_pt_page_calloc (struct hash *h, void *upage, bool writable)
 {
-  return supp_pt_page_alloc (h, upage, ZEROES, NULL, 0, 0, writable);
+  return supp_pt_page_alloc (h, upage, ZEROES,
+    NULL, 0, 0, -1, writable) != NULL;
 }
 
-static bool
+static struct supp_pte *
 supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
-  struct file *file, off_t start, size_t bytes, bool writable)
+  struct file *file, off_t start, size_t bytes,
+  mapid_t mapid, bool writable)
 {
   struct supp_pte *e = malloc (sizeof (struct supp_pte));
   if (!e)
     {
-      return false;
+      return NULL;
     }
 
   e->address = upage;
@@ -155,11 +157,17 @@ supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
   e->file = file;
   e->start = start;
   e->bytes = bytes;
+  e->mapping = mapid;
   e->writable = writable;
 
   /* There should not already exist a supp_pte
      for this upage in the supplementary page table. */
-  return hash_insert (h, &e->hash_elem) == NULL;
+  if (hash_insert (h, &e->hash_elem) != NULL)
+    {
+      free (e);
+      return NULL;
+    }
+  return e;
 }
 
 bool
@@ -191,11 +199,69 @@ supp_pt_page_free (struct hash *h, void *upage)
 {
   struct supp_pte key;
   key.address = upage;
-  struct hash_elem *e = hash_delete (h, &key.hash_elem);
-  if (e)
+  struct supp_pte *supp_pte =
+    hash_entry (hash_delete (h, &key.hash_elem), struct supp_pte, hash_elem);
+
+  /* TODO: Move this to free_func. */
+  if (supp_pte)
     {
-      free (hash_entry (e, struct supp_pte, hash_elem));
+      /* Free whatever memory that this page occupied. */
+      /* TODO: Synchronization. */
+      struct thread *t = thread_current ();
+      switch (supp_pte->loc)
+        {
+          void *kpage;
+          case PRESENT:
+            kpage = pagedir_get_page (t->pagedir, upage);
+            ASSERT (kpage != NULL); 
+            pagedir_clear_page (t->pagedir, upage); /* Clear the mapping. */
+            frame_free (kpage);
+            break;
+          case SWAP:
+            /* TODO: Free swap. */
+            break;
+          case DISK:
+          case ZEROES:
+            /* TODO: What should be here, if anything? */
+            break;
+          default:
+            NOT_REACHED ();
+        }
+
+      /* Free the entry itself. */
+      free (supp_pte);
       return true;
     }
-  return false;
+
+    return false;
+}
+
+bool
+supp_pt_munmap (struct hash *h, void *first_mmap_page)
+{
+  struct supp_pte *supp_curr = supp_pt_lookup (h, first_mmap_page);
+  if (supp_curr == NULL || supp_curr->mapping != (mapid_t)first_mmap_page)
+    {
+      return false;
+    }
+
+  /* Approach:
+      1) Calcualte total num pages.
+      2) Start at page i
+      3) delete and free page i
+      4) i++
+      5) go to 2) unless k >= num pages, then done.
+   */
+  lock_acquire (&filesys_lock);
+  size_t num_pages = file_length (supp_curr->file) % PGSIZE + 1;
+  lock_release (&filesys_lock);
+
+  size_t i;
+  for (i = 0; i < num_pages; i++)
+    {
+      /* TODO: Remove assert wrapping. */
+      ASSERT(supp_pt_page_free (h, (void *)
+        ((uintptr_t)first_mmap_page + i * PGSIZE)));
+    }
+  return true;
 }

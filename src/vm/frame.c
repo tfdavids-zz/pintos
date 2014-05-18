@@ -43,9 +43,21 @@ frame_alloc (void *upage)
   return kpage;
 }
 
+/* Free the page kpage and remove the corresponding entry
+   from our frame table. */
 void
 frame_free (void *kpage)
 {
-  palloc_free_page (kpage);
-  // TODO
+  struct list_elem *e;
+  for (e = list_begin (&ftable); e != list_end (&ftable);
+       e = list_next (e))
+    {
+      struct frame *f = list_entry (e, struct frame, elem);
+      if (f->kpage == kpage)
+        {
+          list_remove (&f->elem);
+          palloc_free_page (kpage);
+          break;
+        }
+    }
 }

@@ -557,7 +557,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       else if (page_zero_bytes == 0)
         {
           if (!supp_pt_page_alloc_file (&t->supp_pt,
-            upage, file, ofs, PGSIZE, writable))
+            upage, file, ofs, PGSIZE, -1, writable))
             {
               return false;
             }
@@ -565,7 +565,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       else
         {
           if (!supp_pt_page_alloc_file (&t->supp_pt, upage, file, ofs,
-            page_read_bytes, writable))
+            page_read_bytes, -1, writable))
             {
               return false;
             }

@@ -6,6 +6,7 @@
 #include "devices/block.h"
 #include "userprog/pagedir.h"
 #include "threads/vaddr.h"
+#include "vm/swap.h"
 
 static struct block *swap_device;
 static struct bitmap *swap_slots;
