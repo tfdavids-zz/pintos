@@ -178,6 +178,7 @@ process_exit (void)
     {
       struct child_state *cs = thread_child_lookup (parent,
         thread_current ()->tid);
+      cs->exit_status = cur->exit_status;
       sema_up (&cs->sema);
     }
   intr_set_level (old_level);

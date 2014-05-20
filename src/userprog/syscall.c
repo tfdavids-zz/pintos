@@ -22,7 +22,7 @@ static uint8_t syscall_arg_num[] =
 
 static void syscall_handler (struct intr_frame *f);
 static void sys_halt (void) NO_RETURN;
-static void sys_exit (struct intr_frame *f, int status) NO_RETURN;
+static void sys_exit (int status) NO_RETURN;
 static void sys_exec (struct intr_frame *f, const char *file);
 static void sys_wait (struct intr_frame *f, pid_t pid);
 static void sys_create (struct intr_frame *f, const char *file,
@@ -43,21 +43,19 @@ static void sys_munmap (struct intr_frame *f, mapid_t mapping);
 static bool is_valid_ptr (const void *ptr);
 static bool is_valid_range (const void *ptr, size_t len);
 static bool is_valid_string (const char *ptr);
-static inline void exit_on (struct intr_frame *f, bool condition);
-static inline void exit_on_file (struct intr_frame *f, bool condition);
+static inline void exit_on (bool condition);
+static inline void exit_on_file (bool condition);
 
 /* A convenience function for exiting gracefully from
    errors in system calls. The supplied condition should be
    true iff some sort of bug occurred in the thread that
    requires it to exit with an exit code of -1. */
 inline void
-exit_on (struct intr_frame *f, bool condition)
+exit_on (bool condition)
 {
   if (condition)
   {
-    f->eax = -1;
-    thread_current ()->exit_status = -1;
-    thread_exit ();
+    sys_exit (-1);
   }
 }
 
@@ -66,13 +64,13 @@ exit_on (struct intr_frame *f, bool condition)
    is true, the lock is released and the thread is forced
    to exit as per exit_on. */
 inline void
-exit_on_file (struct intr_frame *f, bool condition)
+exit_on_file (bool condition)
 {
   ASSERT (lock_held_by_current_thread (&filesys_lock));
   if (condition)
   {
     lock_release (&filesys_lock);
-    exit_on (f, true);
+    exit_on (true);
   }
 }
 
@@ -89,7 +87,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   void *intr_esp = f->esp;
 
   /* Extract the system call number and the arguments, if any. */
-  exit_on (f, !is_valid_range (intr_esp, sizeof (uint32_t)));
+  exit_on (!is_valid_range (intr_esp, sizeof (uint32_t)));
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
 
@@ -97,7 +95,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   for (i = 0; i < arg_num; i++)
     {
       intr_esp = (uint32_t *)intr_esp + 1;
-      exit_on (f, !is_valid_range (intr_esp, sizeof (uint32_t)));
+      exit_on (!is_valid_range (intr_esp, sizeof (uint32_t)));
       args[i] = *((uint32_t *)intr_esp);
     }
 
@@ -108,7 +106,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         sys_halt ();
         break;
       case SYS_EXIT:
-        sys_exit (f, (int)args[0]);
+        sys_exit ((int)args[0]);
         break;
       case SYS_EXEC:
         sys_exec (f, (const char *)args[0]);
@@ -155,7 +153,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_ISDIR:
       case SYS_INUMBER:
       default:
-        exit_on (f, true); /* Unimplemented syscall --
+        exit_on (true); /* Unimplemented syscall --
                               force the thread to exit. */
     }
 }
@@ -216,33 +214,16 @@ sys_halt (void)
 }
 
 static void
-sys_exit (struct intr_frame *f, int status)
+sys_exit (int status)
 {
-  f->eax = status;
   thread_current ()->exit_status = status;
-  
-  /* Communicate the exit status to this process' parent,
-     if the parent exists. */
-  enum intr_level old_level = intr_disable ();
-  struct thread *parent = thread_lookup (thread_current ()->parent_tid);
-  if (parent)
-    {
-      struct child_state *cs = thread_child_lookup(parent,
-						   thread_current ()->tid);
-      if (cs)
-        {
-          cs->exit_status = status;
-        }
-    }
-  intr_set_level (old_level);
-
   thread_exit ();
 }
 
 static void
 sys_exec (struct intr_frame *f, const char *file)
 {
-  exit_on (f, !is_valid_string(file));
+  exit_on (!is_valid_string(file));
   f->eax = process_execute (file);
 }
 
@@ -256,7 +237,7 @@ static void
 sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size)
 {
-  exit_on (f, !is_valid_string (file));
+  exit_on (!is_valid_string (file));
   lock_acquire (&filesys_lock);
   f->eax = filesys_create (file, initial_size);
   lock_release (&filesys_lock);
@@ -265,7 +246,7 @@ sys_create (struct intr_frame *f, const char *file,
 static void
 sys_remove (struct intr_frame *f, const char *file)
 {
-  exit_on (f, !is_valid_string (file));
+  exit_on (!is_valid_string (file));
   lock_acquire (&filesys_lock);
   f->eax = filesys_remove (file);
   lock_release (&filesys_lock);
@@ -274,7 +255,7 @@ sys_remove (struct intr_frame *f, const char *file)
 static void
 sys_open (struct intr_frame *f, const char *file)
 {
-  exit_on (f, !is_valid_string (file));
+  exit_on (!is_valid_string (file));
   lock_acquire (&filesys_lock);
   f->eax = fd_table_open (file);
   lock_release (&filesys_lock);
@@ -285,7 +266,7 @@ sys_filesize (struct intr_frame *f, int fd)
 {
   lock_acquire (&filesys_lock);
   struct file *file = fd_table_get_file (fd);
-  exit_on_file (f, file == NULL);
+  exit_on_file (file == NULL);
   f->eax = file_length (file);
   lock_release (&filesys_lock);
 }
@@ -294,8 +275,8 @@ static void
 sys_read (struct intr_frame *f, int fd, void *buffer,
   unsigned length)
 {
-  exit_on (f, fd == STDOUT_FILENO);
-  exit_on (f, !is_valid_range (buffer, length));
+  exit_on (fd == STDOUT_FILENO);
+  exit_on (!is_valid_range (buffer, length));
 
   /* Read from STDIN if appropriate. */
   if (fd == STDIN_FILENO)
@@ -315,7 +296,7 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
       size_t read_bytes = 0;
       lock_acquire (&filesys_lock);
       struct file *file = fd_table_get_file (fd);
-      exit_on_file (f, file == NULL);
+      exit_on_file (file == NULL);
       while (read_bytes < length)
         {
           tmp = file_read (file, (uint8_t *)buffer + read_bytes,
@@ -336,7 +317,7 @@ static void
 sys_write (struct intr_frame *f, int fd, const void *buffer,
   unsigned length)
 {
-  exit_on (f, !is_valid_range (buffer, length));
+  exit_on (!is_valid_range (buffer, length));
 
   /* Read from STDOUT if appropriate. */
   if (fd == STDOUT_FILENO)
@@ -352,7 +333,7 @@ sys_write (struct intr_frame *f, int fd, const void *buffer,
       size_t written_bytes = 0;
       lock_acquire (&filesys_lock);
       struct file *file = fd_table_get_file (fd);
-      exit_on_file (f, file == NULL);
+      exit_on_file (file == NULL);
       while (written_bytes < length)
         {
           tmp = file_write (file, (uint8_t *)buffer + written_bytes,
@@ -373,7 +354,7 @@ sys_seek (struct intr_frame *f, int fd, unsigned position)
 {
   lock_acquire (&filesys_lock);
   struct file *file = fd_table_get_file (fd);
-  exit_on_file (f, file == NULL);
+  exit_on_file (file == NULL);
   file_seek (file, position);
   lock_release (&filesys_lock);
 }
@@ -383,7 +364,7 @@ sys_tell (struct intr_frame *f, int fd)
 {
   lock_acquire (&filesys_lock);
   struct file *file = fd_table_get_file (fd);
-  exit_on_file (f, file == NULL);
+  exit_on_file (file == NULL);
   f->eax = file_tell (file);
   lock_release (&filesys_lock);
 }
@@ -392,7 +373,7 @@ static void
 sys_close (struct intr_frame *f, int fd)
 {
   lock_acquire (&filesys_lock);
-  exit_on_file (f, !fd_table_close (fd));
+  exit_on_file (!fd_table_close (fd));
   lock_release (&filesys_lock);
 }
 
@@ -490,5 +471,5 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
 static void
 sys_munmap (struct intr_frame *f, mapid_t mapping)
 {
-  exit_on (f, !supp_pt_munmap (&thread_current ()->supp_pt, (void *)mapping));
+  exit_on (!supp_pt_munmap (&thread_current ()->supp_pt, (void *)mapping));
 }
