@@ -119,6 +119,8 @@ palloc_free_multiple (void *pages, size_t page_cnt)
 {
   struct pool *pool;
   size_t page_idx;
+  size_t i;
+  struct thread *t = thread_current ();
 
   ASSERT (pg_ofs (pages) == 0);
   if (pages == NULL || page_cnt == 0)

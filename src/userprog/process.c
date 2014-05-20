@@ -178,6 +178,7 @@ process_exit (void)
     {
       struct child_state *cs = thread_child_lookup (parent,
         thread_current ()->tid);
+      cs->exit_status = cur->exit_status;
       sema_up (&cs->sema);
     }
   intr_set_level (old_level);
@@ -207,6 +208,14 @@ process_exit (void)
   file_close (cur->executable);
   lock_release (&filesys_lock);
 
+  /* TODO: Verify that we are freeing all that we should free, and that
+           there are no odd race conditions or anything here. */
+  supp_pt = &cur->supp_pt;
+  if (supp_pt != NULL)
+    {
+      supp_pt_destroy (supp_pt);
+    }
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -223,16 +232,6 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-
-    /* TODO: Verify that we are freeing all that we should free, and that
-             there are no odd race conditions or anything here. */
-    /* TODO: Do we need to reclaim this process' pages? And update
-             the frame table? Probably ... */
-    supp_pt = &cur->supp_pt;
-    if (supp_pt != NULL)
-      {
-        supp_pt_destroy (supp_pt);
-      }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -557,7 +556,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       else if (page_zero_bytes == 0)
         {
           if (!supp_pt_page_alloc_file (&t->supp_pt,
-            upage, file, ofs, PGSIZE, writable))
+            upage, file, ofs, PGSIZE, -1, writable))
             {
               return false;
             }
@@ -565,7 +564,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       else
         {
           if (!supp_pt_page_alloc_file (&t->supp_pt, upage, file, ofs,
-            page_read_bytes, writable))
+            page_read_bytes, -1, writable))
             {
               return false;
             }

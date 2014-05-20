@@ -94,7 +94,7 @@ frame_evict (void)
     }
   lock_release (&ftable_lock);
 
-  pte = supp_pte_lookup (&evicted_frame->t->supp_pt, evicted_frame->upage);
+  pte = supp_pt_lookup (&evicted_frame->t->supp_pt, evicted_frame->upage);
 
   /* Swap out the page */
   pte->swap_slot_index = swap_write_page (evicted_frame->kpage);
@@ -111,9 +111,24 @@ frame_evict (void)
 }
 
 
+/* Free the page kpage and remove the corresponding entry
+   from our frame table. */
 void
 frame_free (void *kpage)
 {
-  palloc_free_page (kpage);
-  // TODO
+  struct list_elem *e;
+  lock_acquire (&ftable_lock);
+  for (e = list_begin (&ftable); e != list_end (&ftable);
+       e = list_next (e))
+    {
+      struct frame *f = list_entry (e, struct frame, elem);
+      if (f->kpage == kpage)
+        {
+          list_remove (&f->elem);
+          palloc_free_page (kpage);
+          free (f);
+          break;
+        }
+    }
+  lock_release (&ftable_lock);
 }

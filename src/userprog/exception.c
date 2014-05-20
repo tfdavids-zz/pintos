@@ -1,6 +1,7 @@
 #include "userprog/exception.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include "lib/user/syscall.h"
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -156,8 +157,8 @@ page_fault (struct intr_frame *f)
      page. */
   if (!not_present)
     {
-      f->cs = SEL_UCSEG;
-      kill (f);
+      thread_current ()->exit_status = -1;
+      thread_exit ();
     }
 
   /* Otherwise, handle the page fault by loading the page into memory. */
