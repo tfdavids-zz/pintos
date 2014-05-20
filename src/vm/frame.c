@@ -57,6 +57,7 @@ frame_free (void *kpage)
         {
           list_remove (&f->elem);
           palloc_free_page (kpage);
+          free (f);
           break;
         }
     }
