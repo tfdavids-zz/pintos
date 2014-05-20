@@ -129,6 +129,7 @@ page_fault (struct intr_frame *f)
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
+  bool success;
 
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
@@ -147,7 +148,6 @@ page_fault (struct intr_frame *f)
   /* Count page faults. */
   page_fault_cnt++;
 
-  /* TODO: Stack growth. */
   /* Determine cause. */
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
@@ -161,9 +161,21 @@ page_fault (struct intr_frame *f)
       thread_exit ();
     }
 
+  // stack growth
+  if (fault_addr < PHYS_BASE && fault_addr >= f->esp - 32)
+    {
+      success = supp_pt_page_calloc (&thread_current ()->supp_pt,
+                                     pg_round_down (fault_addr), true);
+      if (!success)
+        {
+          thread_current ()->exit_status = -1;
+          thread_exit ();
+        }
+    }
+
   /* Otherwise, handle the page fault by loading the page into memory. */
   void *upage = pg_round_down (fault_addr);
-  bool success = page_handle_fault (&thread_current ()->supp_pt, upage);
+  success = page_handle_fault (&thread_current ()->supp_pt, upage);
   if (success) {
     return;
   }
