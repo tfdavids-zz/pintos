@@ -167,9 +167,9 @@ is_valid_ptr (const void *ptr)
 {
   /* TODO: supp_pte can exist but it's possible that ptr is not mapped.
      this could cause a page fault when ptr is later accessed. */
-  return (ptr != NULL) &&
+  return ((ptr != NULL) &&
     (is_user_vaddr (ptr)) &&
-    (supp_pt_page_exists (&thread_current ()->supp_pt, ptr));
+    (supp_pt_page_exists (&thread_current ()->supp_pt, ptr)));
 }
 
 /* Returns true iff every address within the range
@@ -441,7 +441,7 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
            segments (e.g. the stack). */
   /* TODO: Synchronization (what if someone creates a page
            after we've determined it does not exist?). */
-  num_pages = ((length - 1) / PGSIZE) + 1;
+  num_pages = pg_range_num(length);
   for (i = 0; i < num_pages; i++)
     {
       if (supp_pt_page_exists (&t->supp_pt, addr + i * PGSIZE))

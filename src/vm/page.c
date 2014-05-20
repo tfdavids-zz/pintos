@@ -281,7 +281,7 @@ supp_pt_munmap (struct hash *h, void *first_mmap_page)
       5) go to 2) unless k >= num pages, then done.
    */
   lock_acquire (&filesys_lock);
-  size_t num_pages = file_length (supp_curr->file) / PGSIZE + 1;
+  size_t num_pages = pg_range_num (file_length (supp_curr->file));
   lock_release (&filesys_lock);
 
   size_t i;

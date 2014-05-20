@@ -39,7 +39,13 @@ static inline void *pg_round_up (const void *va) {
 static inline void *pg_round_down (const void *va) {
   return (void *) ((uintptr_t) va & ~PGMASK);
 }
-
+
+/* Return the number of pages needed to store length
+   bytes. */
+static inline size_t pg_range_num (size_t length) {
+  return length == 0 ? 0 : (length - 1) / PGSIZE + 1;
+}
+
 /* Base address of the 1:1 physical-to-virtual mapping.  Physical
    memory is mapped starting at this virtual address.  Thus,
    physical address 0 is accessible at PHYS_BASE, physical
