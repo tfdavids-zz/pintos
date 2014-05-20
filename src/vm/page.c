@@ -146,11 +146,13 @@ supp_pt_page_exists (struct hash *h, void *upage)
 bool
 page_handle_fault (struct hash *h, void *upage)
 {
+  printf("page fault on %p\n", upage);
   struct supp_pte *e = supp_pte_lookup (h, upage);
   struct thread *t = thread_current ();
+  printf("yeep\n");
   ASSERT (pagedir_get_page (t->pagedir, upage) == NULL);
   void *kpage = frame_alloc (upage);
-
+  printf("you shall resid ein %p\n", kpage);
   supp_pte_fetch (h, e, kpage);
   return pagedir_set_page (t->pagedir,
     upage, kpage, e->writable);
