@@ -94,9 +94,12 @@ frame_evict (void)
           pagedir_clear_page (evicted_frame->t->pagedir, evicted_frame->upage);
           pte = supp_pt_lookup (
             &evicted_frame->t->supp_pt, evicted_frame->upage);
-          ASSERT (pte != NULL);
-          if (supp_pt_is_valid_mapping (pte->mapping) &&
-              !pagedir_is_dirty (frame->t->pagedir, pte->address))
+
+          /* Use the filesystem as a backing store for RO data and for mmap-ed
+             files, when appropriate. */
+          if ((pte->file != NULL && !pte->writable) ||
+              (supp_pt_is_valid_mapping (pte->mapping) && !pagedir_is_dirty (
+                evicted_frame->t->pagedir, evicted_frame->upage)))
             {
               pte->loc = DISK;
             }
