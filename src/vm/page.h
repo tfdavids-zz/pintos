@@ -25,7 +25,7 @@ enum data_loc
 
 struct supp_pte
   {
-    const void *address;
+    void *address;
     bool writable;
 
     enum data_loc loc;
@@ -62,15 +62,13 @@ void *page_force_load (struct hash *h, void *upage);
 bool page_handle_fault (struct hash *h, void *upage);
 
 // check and see if a page has an entry in h
-bool supp_pt_page_exists (struct hash *h, const void *upage);
+bool supp_pt_page_exists (struct hash *h, void *upage);
+
+bool supp_pt_page_free (struct hash *h, void *upage);
 
 // free a virtual page with address upage
-/* TODO: Do we need this? Also, a conceptual question -- when a user invokes
-  'free' on some memory he has, should we / how would we go about updating the
-  supplemental page table? */
-bool supp_pt_page_free (struct hash *h, void *upage);
 bool supp_pt_munmap (struct hash *h, void *first_mmap_page);
+bool supp_pt_is_valid_mapping (mapid_t mapping);
 
 struct supp_pte *supp_pt_lookup (struct hash *h, void *address);
-
 #endif /* VM_PAGE_H */

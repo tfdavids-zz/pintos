@@ -32,8 +32,6 @@ void swap_init (void)
 
 }
 
-
-
 size_t swap_write_page (void *upage)
 {
   lock_acquire (&swap_slots_lock);
@@ -42,16 +40,14 @@ size_t swap_write_page (void *upage)
 
   if (free_slot_index == BITMAP_ERROR)
     PANIC ("swap is full");
- // printf("free_slot_index %d\n", free_slot_index);
+
   size_t i;
   for (i = 0; i < sectors_per_page; i++)
     {
-      //printf("swap is %d, upage = %p, i = %d\n", free_slot_index, upage, i);
       block_write (swap_device,
                    free_slot_index * sectors_per_page + i,
                    upage + i * BLOCK_SECTOR_SIZE);
     }
-  
   return free_slot_index;
 }
 

@@ -47,12 +47,12 @@ frame_alloc (void *upage)
         {
           /* TODO:Kernel pool full, should probably panic */
           return NULL; // error!
-        }      
+        }
       frame->kpage = kpage;
     }
   else
     {
-      frame = frame_evict ();      
+      frame = frame_evict ();
     }
 
   frame->upage = upage;
@@ -94,19 +94,32 @@ frame_evict (void)
         {
           evicted_frame = frame;
           list_pop_front (&ftable);
+
+          /* TODO: Get this synchronization right. */
           pagedir_clear_page (evicted_frame->t->pagedir, evicted_frame->upage);
+
+          /* Use the filesystem as a backing store for RO data and for mmap-ed
+             files, when appropriate. */
+          if ((pte->file != NULL && !pte->writable) ||
+              (supp_pt_is_valid_mapping (pte->mapping) && !pagedir_is_dirty (
+                evicted_frame->t->pagedir, evicted_frame->upage)))
+            {
+              pte->loc = DISK;
+            }
+          else
+            {
+              pte->loc = SWAP;
+              pte->swap_slot_index = swap_write_page (evicted_frame->kpage);
+            }
         }
     }
-
-  /* Swap out the page */
-
-  pte = supp_pt_lookup (&evicted_frame->t->supp_pt, evicted_frame->upage);
-  pte->swap_slot_index = swap_write_page (evicted_frame->kpage);
-
-  pte->loc = SWAP;
-
   lock_release (&ftable_lock);
-  
+
+
+  /* Swap out the page if necessary.*/
+  /* TODO: Get this right. */
+
+
   /* TODO should it be cc or 0 ? */
   memset (evicted_frame->kpage, 0, PGSIZE);
 
