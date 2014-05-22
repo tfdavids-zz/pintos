@@ -21,9 +21,9 @@ static bool supp_pt_less_func (const struct hash_elem *a,
 
 static void supp_pt_free_func (struct hash_elem *e, void *aux);
 static void supp_pt_fetch (struct supp_pte *e, void *kpage);
-static struct supp_pte *supp_pt_page_alloc (struct hash *h, void *upage,
-  enum data_loc loc, struct file *file, off_t start, size_t bytes,
-  mapid_t mapid, bool writable);
+static struct supp_pte *supp_pt_page_alloc (struct supp_pt *supp_pt,
+  void *upage, enum data_loc loc, struct file *file, off_t start,
+  size_t bytes, mapid_t mapid, bool writable);
 
 static unsigned
 supp_pt_hash_func (const struct hash_elem *e, void *aux UNUSED)
@@ -70,8 +70,8 @@ supp_pt_free_func (struct hash_elem *e, void *aux)
       case PRESENT:
         kpage = pagedir_get_page (t->pagedir, upage);
         ASSERT (kpage != NULL); 
-        pagedir_clear_page (t->pagedir, upage); /* Clear the mapping. */
         frame_free (kpage);
+        pagedir_clear_page (t->pagedir, upage); /* Clear the mapping. */
         break;
       case SWAP:
         /* TODO: Free swap. */
@@ -90,19 +90,19 @@ supp_pt_free_func (struct hash_elem *e, void *aux)
 }
 
 bool
-supp_pt_init (struct hash *h)
+supp_pt_init (struct supp_pt *supp_pt)
 {
-  return hash_init (h, supp_pt_hash_func, supp_pt_less_func, NULL);
+  return hash_init (&supp_pt->h, supp_pt_hash_func, supp_pt_less_func, NULL);
 }
 
 void
-supp_pt_destroy (struct hash *h)
+supp_pt_destroy (struct supp_pt *supp_pt)
 {
-  hash_destroy (h, supp_pt_free_func);
+  hash_destroy (&supp_pt->h, supp_pt_free_func);
 }
 
 struct supp_pte *
-supp_pt_lookup (struct hash *h, void *address)
+supp_pt_lookup (struct supp_pt *supp_pt, void *address)
 {
   address = pg_round_down (address); // round down to page
   
@@ -110,7 +110,7 @@ supp_pt_lookup (struct hash *h, void *address)
   key.address = address;
 
   // find the element in our hash table corresponding to this page
-  struct hash_elem *e = hash_find (h, &key.hash_elem);
+  struct hash_elem *e = hash_find (&supp_pt->h, &key.hash_elem);
   if (!e)
     {
       return NULL;
@@ -145,22 +145,22 @@ supp_pt_fetch (struct supp_pte *e, void *kpage)
 }
 
 bool
-supp_pt_page_alloc_file (struct hash *h, void *upage,
+supp_pt_page_alloc_file (struct supp_pt *supp_pt, void *upage,
   struct file *file, off_t start, size_t bytes, mapid_t mapid, bool writable)
 {
-  return supp_pt_page_alloc (h, upage, DISK, file, start, bytes,
+  return supp_pt_page_alloc (supp_pt, upage, DISK, file, start, bytes,
     mapid, writable) != NULL;
 }
 
 bool
-supp_pt_page_calloc (struct hash *h, void *upage, bool writable)
+supp_pt_page_calloc (struct supp_pt *supp_pt, void *upage, bool writable)
 {
-  return supp_pt_page_alloc (h, upage, ZEROES,
+  return supp_pt_page_alloc (supp_pt, upage, ZEROES,
     NULL, 0, 0, -1, writable) != NULL;
 }
 
 static struct supp_pte *
-supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
+supp_pt_page_alloc (struct supp_pt *supp_pt, void *upage, enum data_loc loc,
   struct file *file, off_t start, size_t bytes,
   mapid_t mapid, bool writable)
 {
@@ -180,7 +180,7 @@ supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
 
   /* There should not already exist a supp_pte
      for this upage in the supplementary page table. */
-  if (hash_insert (h, &e->hash_elem) != NULL)
+  if (hash_insert (&supp_pt->h, &e->hash_elem) != NULL)
     {
       free (e);
       return NULL;
@@ -189,16 +189,16 @@ supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
 }
 
 bool
-supp_pt_page_exists (struct hash *h, void *upage)
+supp_pt_page_exists (struct supp_pt *supp_pt, void *upage)
 {
-  return supp_pt_lookup (h, upage) != NULL;
+  return supp_pt_lookup (supp_pt, upage) != NULL;
 }
 
 bool
-page_handle_fault (struct hash *h, void *upage)
+page_handle_fault (struct supp_pt *supp_pt, void *upage)
 {
   ASSERT (is_user_vaddr (upage));
-  struct supp_pte *e = supp_pt_lookup (h, upage);
+  struct supp_pte *e = supp_pt_lookup (supp_pt, upage);
   if (e == NULL)
     {
       return false;
@@ -228,12 +228,15 @@ page_handle_fault (struct hash *h, void *upage)
 }
 
 bool
-supp_pt_page_free (struct hash *h, void *upage)
+supp_pt_page_free (struct supp_pt *supp_pt, void *upage)
 {
   struct supp_pte key;
   key.address = upage;
   struct supp_pte *supp_pte =
-    hash_entry (hash_delete (h, &key.hash_elem), struct supp_pte, hash_elem);
+    hash_entry (hash_delete (&supp_pt->h, &key.hash_elem),
+      struct supp_pte, hash_elem);
+
+  /* First retrieve the frame. Then free it. Then free the entry? */
 
   if (supp_pte)
     {
@@ -244,9 +247,9 @@ supp_pt_page_free (struct hash *h, void *upage)
 }
 
 bool
-supp_pt_munmap (struct hash *h, void *first_mmap_page)
+supp_pt_munmap (struct supp_pt *supp_pt, void *first_mmap_page)
 {
-  struct supp_pte *supp_curr = supp_pt_lookup (h, first_mmap_page);
+  struct supp_pte *supp_curr = supp_pt_lookup (supp_pt, first_mmap_page);
   if (supp_curr == NULL || supp_curr->mapping != (mapid_t)first_mmap_page)
     {
       return false;
@@ -268,7 +271,7 @@ supp_pt_munmap (struct hash *h, void *first_mmap_page)
   for (i = 0; i < num_pages; i++)
     {
       /* TODO: Remove assert wrapping. */
-      ASSERT(supp_pt_page_free (h, (void *)
+      ASSERT(supp_pt_page_free (supp_pt, (void *)
         ((uintptr_t)first_mmap_page + i * PGSIZE)));
     }
 

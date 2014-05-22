@@ -3,10 +3,11 @@
 
 #include "lib/stdbool.h"
 #include "lib/kernel/hash.h"
-#include "lib/user/syscall.h"
+#include "userprog/syscall.h"
 #include "devices/block.h"
 #include "filesys/off_t.h"
 #include "filesys/file.h"
+#include "threads/synch.h"
 
 /* On a page fault, the kernel looks up the virtual page that faulted in the
  * supplemental page table to find out what data should be there. This means
@@ -21,6 +22,12 @@ enum data_loc
     ZEROES,
     SWAP,
     PRESENT,
+  };
+
+struct supp_pt
+  {
+    struct hash h;
+    struct rw_lock rw_lock;
   };
 
 struct supp_pte
@@ -43,32 +50,32 @@ struct supp_pte
     struct hash_elem hash_elem;
   };
 
-bool supp_pt_init (struct hash *h);
-void supp_pt_destroy (struct hash *h);
+bool supp_pt_init (struct supp_pt *supp_pt);
+void supp_pt_destroy (struct supp_pt *supp_pt);
 
 /* Hook the provided upage into a user process' supplementary page
    table. */
-bool supp_pt_page_alloc_file (struct hash *h, void *upage, struct file *file,
-                            off_t start, size_t bytes,
+bool supp_pt_page_alloc_file (struct supp_pt *supp_pt, void *upage,
+                            struct file *file, off_t start, size_t bytes,
                             mapid_t mapid, bool writable);
-bool supp_pt_page_calloc (struct hash *h, void *upage, bool writable);
+bool supp_pt_page_calloc (struct supp_pt *supp_pt, void *upage, bool writable);
 
 /* Creates a mapping between the provided upage and to an allocated
    kpage; returns the kpage. */
-void *page_force_load (struct hash *h, void *upage);
+void *page_force_load (struct supp_pt *supp_pt, void *upage);
 
 // handle a page fault (obtain a frame, fetch the right data into the frame,
 // point the VA to the frame, and return success)
-bool page_handle_fault (struct hash *h, void *upage);
+bool page_handle_fault (struct supp_pt *supp_pt, void *upage);
 
 // check and see if a page has an entry in h
-bool supp_pt_page_exists (struct hash *h, void *upage);
+bool supp_pt_page_exists (struct supp_pt *supp_pt, void *upage);
 
-bool supp_pt_page_free (struct hash *h, void *upage);
+bool supp_pt_page_free (struct supp_pt *supp_pt, void *upage);
 
 // free a virtual page with address upage
-bool supp_pt_munmap (struct hash *h, void *first_mmap_page);
+bool supp_pt_munmap (struct supp_pt *supp_pt, void *first_mmap_page);
 bool supp_pt_is_valid_mapping (mapid_t mapping);
 
-struct supp_pte *supp_pt_lookup (struct hash *h, void *address);
+struct supp_pte *supp_pt_lookup (struct supp_pt *supp_pt, void *address);
 #endif /* VM_PAGE_H */

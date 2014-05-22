@@ -1,3 +1,5 @@
+#include "vm/swap.h"
+
 #include <bitmap.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -7,7 +9,6 @@
 #include "userprog/pagedir.h"
 #include "threads/vaddr.h"
 #include "threads/synch.h"
-#include "vm/swap.h"
 
 static struct block *swap_device;
 static struct bitmap *swap_slots;

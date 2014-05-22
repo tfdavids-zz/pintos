@@ -37,9 +37,9 @@
 #include "filesys/filesys.h"
 #include "filesys/fsutil.h"
 #endif
-
-#ifndef VM
+#ifdef VM
 #include "vm/swap.h"
+#include "vm/frame.h"
 #endif
 
 /* Page directory with kernel mappings only. */
@@ -103,7 +103,9 @@ main (void)
   malloc_init ();
   paging_init ();
 
+#ifdef VM
   frame_table_init ();
+#endif
 
   /* Segmentation. */
 #ifdef USERPROG

@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "lib/kernel/hash.h"
 #include "userprog/fdtable.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
@@ -164,7 +163,7 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
-  struct hash *supp_pt;
+  struct supp_pt *supp_pt;
 
   printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
 

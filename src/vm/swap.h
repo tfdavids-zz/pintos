@@ -1,6 +1,9 @@
 #ifndef VM_SWAP_H
 #define VM_SWAP_H
 
+#include "lib/stdbool.h"
+#include "lib/stddef.h"
+
 void swap_init (void);
 
 size_t swap_write_page (void *upage);

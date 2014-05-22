@@ -11,7 +11,6 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "lib/user/syscall.h"
 #include "vm/page.h"
 
 /* A table mapping syscall numbers to the number of arguments
