@@ -123,7 +123,7 @@ kill (struct intr_frame *f)
    description of "Interrupt 14--Page Fault Exception (#PF)" in
    [IA32-v3a] section 5.15 "Exception and Interrupt Reference". */
 static void
-page_fault (struct intr_frame *f) 
+page_fault (struct intr_frame *f)
 {
   bool not_present;  /* True: not-present page, false: writing r/o page. */
   bool write;        /* True: access was write, false: access was read. */
@@ -143,7 +143,6 @@ page_fault (struct intr_frame *f)
      be assured of reading CR2 before it changed). */
   intr_enable ();
 
-
   /* Count page faults. */
   page_fault_cnt++;
 
@@ -154,19 +153,21 @@ page_fault (struct intr_frame *f)
   user = (f->error_code & PF_U) != 0;
 
   /* Terminate the user process if it attempts to write to a read-only
-     page. */
-  if (!not_present)
+     page, or if it faulted on a kernel address.*/
+  if (!not_present || is_kernel_vaddr (fault_addr))
     {
       thread_current ()->exit_status = -1;
       thread_exit ();
     }
 
-  /* Otherwise, handle the page fault by loading the page into memory. */
+  /* Otherwise, handle the page fault by attempting to load the page
+     into memory. */
   void *upage = pg_round_down (fault_addr);
   bool success = page_handle_fault (&thread_current ()->supp_pt, upage);
-  if (success) {
-    return;
-  }
+  if (success)
+    {
+      return;
+    }
 
   /* Else we have a really bad page fault, so panic */
   thread_current ()->exit_status = -1;

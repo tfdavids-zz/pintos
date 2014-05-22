@@ -553,18 +553,10 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
               return false;
           }
         }
-      else if (page_zero_bytes == 0)
+      else 
         {
           if (!supp_pt_page_alloc_file (&t->supp_pt,
-            upage, file, ofs, PGSIZE, -1, writable))
-            {
-              return false;
-            }
-        }
-      else
-        {
-          if (!supp_pt_page_alloc_file (&t->supp_pt, upage, file, ofs,
-            page_read_bytes, -1, writable))
+            upage, file, ofs, page_read_bytes, -1, writable))
             {
               return false;
             }
@@ -573,7 +565,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
-      ofs += PGSIZE;
+      ofs += page_read_bytes;
       upage += PGSIZE;
     }
 

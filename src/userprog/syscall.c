@@ -34,11 +34,11 @@ static void sys_read (struct intr_frame *f, int fd, void *buffer,
   unsigned length);
 static void sys_write (struct intr_frame *f, int fd, const void *buffer,
   unsigned length);
-static void sys_seek (struct intr_frame *f, int fd, unsigned position);
+static void sys_seek (int fd, unsigned position);
 static void sys_tell (struct intr_frame *f, int fd);
-static void sys_close (struct intr_frame *f, int fd);
+static void sys_close (int fd);
 static void sys_mmap (struct intr_frame *f, int fd, void *addr);
-static void sys_munmap (struct intr_frame *f, mapid_t mapping);
+static void sys_munmap (mapid_t mapping);
 
 static bool is_valid_ptr (const void *ptr);
 static bool is_valid_range (const void *ptr, size_t len);
@@ -133,19 +133,19 @@ syscall_handler (struct intr_frame *f UNUSED)
         sys_write (f, (int)args[0], (const void *)args[1], (unsigned)args[2]);
         break;
       case SYS_SEEK:
-        sys_seek (f, (int)args[0], (unsigned)args[1]);
+        sys_seek ((int)args[0], (unsigned)args[1]);
         break;
       case SYS_TELL:
         sys_tell (f, (int)args[0]);
         break;
       case SYS_CLOSE:
-        sys_close (f, (int)args[0]);
+        sys_close ((int)args[0]);
         break;
       case SYS_MMAP:
         sys_mmap (f, (int)args[0], (void *)args[1]);
         break;
       case SYS_MUNMAP:
-        sys_munmap (f, (mapid_t)args[0]);
+        sys_munmap ((mapid_t)args[0]);
         break;
       case SYS_CHDIR:
       case SYS_MKDIR:
@@ -350,7 +350,7 @@ sys_write (struct intr_frame *f, int fd, const void *buffer,
 }
 
 static void
-sys_seek (struct intr_frame *f, int fd, unsigned position)
+sys_seek (int fd, unsigned position)
 {
   lock_acquire (&filesys_lock);
   struct file *file = fd_table_get_file (fd);
@@ -370,7 +370,7 @@ sys_tell (struct intr_frame *f, int fd)
 }
 
 static void
-sys_close (struct intr_frame *f, int fd)
+sys_close (int fd)
 {
   lock_acquire (&filesys_lock);
   exit_on_file (!fd_table_close (fd));
@@ -469,7 +469,7 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
 }
 
 static void
-sys_munmap (struct intr_frame *f, mapid_t mapping)
+sys_munmap (mapid_t mapping)
 {
   exit_on (!supp_pt_munmap (&thread_current ()->supp_pt, (void *)mapping));
 }

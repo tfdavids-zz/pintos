@@ -47,12 +47,12 @@ frame_alloc (void *upage)
         {
           /* TODO:Kernel pool full, should probably panic */
           return NULL; // error!
-        }      
+        }
       frame->kpage = kpage;
     }
   else
     {
-      frame = frame_evict ();      
+      frame = frame_evict ();
     }
 
   frame->upage = upage;
@@ -81,7 +81,7 @@ frame_evict (void)
       e = list_front (&ftable);
       frame = list_entry(e, struct frame, elem);
       if (pagedir_is_accessed (frame->t->pagedir, frame->upage))
-        {              
+        {
           pagedir_set_accessed (frame->t->pagedir, frame->upage, false);
           list_push_back(&ftable, list_pop_front (&ftable));
         }
@@ -89,18 +89,31 @@ frame_evict (void)
         {
           evicted_frame = frame;
           list_pop_front (&ftable);
+
+          /* TODO: Get this synchronization right. */
           pagedir_clear_page (evicted_frame->t->pagedir, evicted_frame->upage);
+          pte = supp_pt_lookup (
+            &evicted_frame->t->supp_pt, evicted_frame->upage);
+          ASSERT (pte != NULL);
+          if (supp_pt_is_valid_mapping (pte->mapping) &&
+              !pagedir_is_dirty (frame->t->pagedir, pte->address))
+            {
+              pte->loc = DISK;
+            }
+          else
+            {
+              pte->loc = SWAP;
+              pte->swap_slot_index = swap_write_page (evicted_frame->kpage);
+            }
         }
     }
   lock_release (&ftable_lock);
 
-  pte = supp_pt_lookup (&evicted_frame->t->supp_pt, evicted_frame->upage);
 
-  /* Swap out the page */
-  pte->swap_slot_index = swap_write_page (evicted_frame->kpage);
+  /* Swap out the page if necessary.*/
+  /* TODO: Get this right. */
 
-  pte->loc = SWAP;
-  
+
   /* TODO should it be cc or 0 ? */
   memset (evicted_frame->kpage, 0, PGSIZE);
 

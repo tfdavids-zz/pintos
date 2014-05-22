@@ -43,8 +43,6 @@ supp_pt_less_func (const struct hash_elem *a, const struct hash_elem *b,
 }
 
 /* TODO: Verify that this frees everything that should be freed. */
-/* TODO: Will there ever be a case where the file is not closed by
-   the process upon exit? */
 static void
 supp_pt_free_func (struct hash_elem *e, void *aux)
 {
@@ -66,9 +64,9 @@ supp_pt_free_func (struct hash_elem *e, void *aux)
 
   /* Free whatever memory that this page occupied. */
   /* TODO: Synchronization. */
+  void *kpage;
   switch (supp_pte->loc)
     {
-      void *kpage;
       case PRESENT:
         kpage = pagedir_get_page (t->pagedir, upage);
         ASSERT (kpage != NULL); 
@@ -129,6 +127,7 @@ supp_pt_fetch (struct supp_pte *e, void *kpage)
     {
       case DISK:
         lock_acquire (&filesys_lock);
+        /* TODO: Read loop? */
         file_read_at (e->file, kpage, e->bytes, e->start);
         lock_release (&filesys_lock);
         memset ((uint8_t *)kpage + e->bytes, 0, PGSIZE - e->bytes);
@@ -190,7 +189,7 @@ supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
 }
 
 bool
-supp_pt_page_exists (struct hash *h, const void *upage)
+supp_pt_page_exists (struct hash *h, void *upage)
 {
   return supp_pt_lookup (h, upage) != NULL;
 }
@@ -198,7 +197,7 @@ supp_pt_page_exists (struct hash *h, const void *upage)
 bool
 page_handle_fault (struct hash *h, void *upage)
 {
-  //printf("page fault on %p\n", upage);
+  ASSERT (is_user_vaddr (upage));
   struct supp_pte *e = supp_pt_lookup (h, upage);
   if (e == NULL)
     {
@@ -206,18 +205,16 @@ page_handle_fault (struct hash *h, void *upage)
     }
 
   struct thread *t = thread_current ();
- // printf("yeep\n");
   ASSERT (pagedir_get_page (t->pagedir, upage) == NULL);
   void *kpage = frame_alloc (upage);
- // printf("you shall resid ein %p\n", kpage);
   if (!kpage)
     {
-      /* TODO: Swapping. */
       ASSERT (false);
     }
 
   /* TODO: Synchronization. */
   supp_pt_fetch (e, kpage);
+  pagedir_set_dirty (t->pagedir, upage, false);
   if (pagedir_set_page (t->pagedir,
     upage, kpage, e->writable))
     {
@@ -274,9 +271,15 @@ supp_pt_munmap (struct hash *h, void *first_mmap_page)
       ASSERT(supp_pt_page_free (h, (void *)
         ((uintptr_t)first_mmap_page + i * PGSIZE)));
     }
-  
+
   lock_acquire (&filesys_lock);
   file_close (file);
   lock_release (&filesys_lock);
   return true;
+}
+
+bool
+supp_pt_is_valid_mapping (mapid_t mapping)
+{
+  return mapping > 0 && is_user_vaddr ((void *)mapping);
 }
