@@ -177,6 +177,7 @@ supp_pt_page_alloc (struct supp_pt *supp_pt, void *upage, enum data_loc loc,
   e->bytes = bytes;
   e->mapping = mapid;
   e->writable = writable;
+  e->pinned = false;
 
   /* There should not already exist a supp_pte
      for this upage in the supplementary page table. */
@@ -199,30 +200,32 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
 {
   ASSERT (is_user_vaddr (upage));
   struct supp_pte *e = supp_pt_lookup (supp_pt, upage);
+  e->pinned = true;
   if (e == NULL)
     {
       return false;
     }
 
   struct thread *t = thread_current ();
-  ASSERT (pagedir_get_page (t->pagedir, upage) == NULL);
   void *kpage = frame_alloc (upage);
   if (!kpage)
     {
       ASSERT (false);
     }
-
   /* TODO: Synchronization. */
+
   supp_pt_fetch (e, kpage);
   pagedir_set_dirty (t->pagedir, upage, false);
   if (pagedir_set_page (t->pagedir,
     upage, kpage, e->writable))
     {
       e->loc = PRESENT;
+      e->pinned = false;
       return true;
     }
   else
     {
+      e->pinned = false;
       return false;
     }
 }

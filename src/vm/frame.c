@@ -81,8 +81,13 @@ frame_evict (void)
     {
       e = list_front (&ftable);
       frame = list_entry(e, struct frame, elem);
-      if (pagedir_is_accessed (frame->t->pagedir, frame->upage))
+      pte = supp_pt_lookup (&frame->t->supp_pt, frame->upage);
+      if (pte->pinned)
         {
+          list_push_back(&ftable, list_pop_front (&ftable));
+        }
+      else if (pagedir_is_accessed (frame->t->pagedir, frame->upage))
+        {              
           pagedir_set_accessed (frame->t->pagedir, frame->upage, false);
           list_push_back(&ftable, list_pop_front (&ftable));
         }
@@ -93,8 +98,6 @@ frame_evict (void)
 
           /* TODO: Get this synchronization right. */
           pagedir_clear_page (evicted_frame->t->pagedir, evicted_frame->upage);
-          pte = supp_pt_lookup (
-            &evicted_frame->t->supp_pt, evicted_frame->upage);
 
           /* Use the filesystem as a backing store for RO data and for mmap-ed
              files, when appropriate. */
@@ -126,7 +129,6 @@ frame_evict (void)
 #endif
   return evicted_frame;
 }
-
 
 /* Free the page kpage and remove the corresponding entry
    from our frame table. */
