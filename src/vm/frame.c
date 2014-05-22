@@ -80,7 +80,12 @@ frame_evict (void)
     {
       e = list_front (&ftable);
       frame = list_entry(e, struct frame, elem);
-      if (pagedir_is_accessed (frame->t->pagedir, frame->upage))
+      pte = supp_pt_lookup (&frame->t->supp_pt, frame->upage);
+      if (pte->pinned)
+        {
+          list_push_back(&ftable, list_pop_front (&ftable));
+        }
+      else if (pagedir_is_accessed (frame->t->pagedir, frame->upage))
         {              
           pagedir_set_accessed (frame->t->pagedir, frame->upage, false);
           list_push_back(&ftable, list_pop_front (&ftable));
@@ -92,14 +97,15 @@ frame_evict (void)
           pagedir_clear_page (evicted_frame->t->pagedir, evicted_frame->upage);
         }
     }
-  lock_release (&ftable_lock);
-
-  pte = supp_pt_lookup (&evicted_frame->t->supp_pt, evicted_frame->upage);
 
   /* Swap out the page */
+
+  pte = supp_pt_lookup (&evicted_frame->t->supp_pt, evicted_frame->upage);
   pte->swap_slot_index = swap_write_page (evicted_frame->kpage);
 
   pte->loc = SWAP;
+
+  lock_release (&ftable_lock);
   
   /* TODO should it be cc or 0 ? */
   memset (evicted_frame->kpage, 0, PGSIZE);
@@ -109,7 +115,6 @@ frame_evict (void)
 #endif
   return evicted_frame;
 }
-
 
 /* Free the page kpage and remove the corresponding entry
    from our frame table. */

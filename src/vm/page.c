@@ -178,6 +178,7 @@ supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
   e->bytes = bytes;
   e->mapping = mapid;
   e->writable = writable;
+  e->pinned = false;
 
   /* There should not already exist a supp_pte
      for this upage in the supplementary page table. */
@@ -198,34 +199,40 @@ supp_pt_page_exists (struct hash *h, const void *upage)
 bool
 page_handle_fault (struct hash *h, void *upage)
 {
+
   //printf("page fault on %p\n", upage);
   struct supp_pte *e = supp_pt_lookup (h, upage);
+  e->pinned = true;
   if (e == NULL)
     {
       return false;
     }
 
   struct thread *t = thread_current ();
- // printf("yeep\n");
+  //printf("yeep\n");
   ASSERT (pagedir_get_page (t->pagedir, upage) == NULL);
   void *kpage = frame_alloc (upage);
- // printf("you shall resid ein %p\n", kpage);
+  //printf("I GOT !! %p\n", kpage);
+
   if (!kpage)
     {
       /* TODO: Swapping. */
       ASSERT (false);
     }
-
   /* TODO: Synchronization. */
+
   supp_pt_fetch (e, kpage);
+  //printf("I LOADED INTO %p\n", kpage);
   if (pagedir_set_page (t->pagedir,
     upage, kpage, e->writable))
     {
       e->loc = PRESENT;
+      e->pinned = false;
       return true;
     }
   else
     {
+      e->pinned = false;
       return false;
     }
 }

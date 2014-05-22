@@ -39,7 +39,7 @@ struct supp_pte
     size_t bytes; /* The number of bytes to copy from the file. */
     mapid_t mapping; /* Negative if this page was not mmaped; otherwise,
                         the id of the mapping. */
-
+    bool pinned;
     struct hash_elem hash_elem;
   };
 
