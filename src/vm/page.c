@@ -8,6 +8,7 @@
 #include "filesys/off_t.h"
 #include "filesys/file.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
@@ -156,6 +157,9 @@ supp_pt_page_alloc (struct supp_pt *supp_pt, void *upage, enum data_loc loc,
   e->mapping = mapid;
   e->writable = writable;
   e->pinned = false;
+  e->being_evicted = false;
+  lock_init (&e->l);
+  cond_init (&e->done_evicting);
 
   /* There should not already exist a supp_pte
      for this upage in the supplementary page table.
@@ -172,22 +176,18 @@ supp_pt_page_alloc (struct supp_pt *supp_pt, void *upage, enum data_loc loc,
   return e;
 }
 
+/* Writes the contents of the mapping to disk. */
 void
-supp_pt_write_if_dirty (struct supp_pte *supp_pte)
+supp_pt_write (struct supp_pte *supp_pte)
 {
   struct thread *t = thread_current ();
 
-  /* Write if dirty! */
   if (supp_pt_is_valid_mapping (supp_pte->mapping))
     {
-      if (pagedir_is_dirty (t->pagedir, supp_pte->upage))
-        {
-          lock_acquire (&filesys_lock);
-          file_write_at (supp_pte->file, supp_pte->upage,
-            supp_pte->bytes, supp_pte->start);
-          lock_release (&filesys_lock);
-          pagedir_set_dirty (t->pagedir, supp_pte->upage, false);
-        }
+      lock_acquire (&filesys_lock);
+      file_write_at (supp_pte->file, supp_pte->upage,
+        supp_pte->bytes, supp_pte->start);
+      lock_release (&filesys_lock);
     }
 }
 
@@ -208,6 +208,14 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
     }
   e->pinned = true;
 
+  lock_acquire (&e->l);
+  while (e->being_evicted)
+    {
+      cond_wait (&e->done_evicting, &e->l);
+    }
+  e->pinned = true;
+  lock_release (&e->l);
+
   struct thread *t = thread_current ();
   void *kpage = frame_alloc (upage);
   if (!kpage)
@@ -217,16 +225,19 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
   /* TODO: Synchronization. */
 
   supp_pt_fetch (e, kpage);
+  lock_acquire (&e->l);
   pagedir_set_dirty (t->pagedir, upage, false);
   if (pagedir_set_page (t->pagedir,
     upage, kpage, e->writable))
     {
       e->pinned = false;
+      lock_release (&e->l);
       return true;
     }
   else
     {
       e->pinned = false;
+      lock_release (&e->l);
       return false;
     }
 }
@@ -268,13 +279,6 @@ supp_pt_munmap (struct supp_pt *supp_pt, void *first_mmap_page)
     }
   struct file *file = supp_curr->file;
 
-  /* Approach:
-      1) Calcualte total num pages.
-      2) Start at page i
-      3) delete and free page i
-      4) i++
-      5) go to 2) unless k >= num pages, then done.
-   */
   lock_acquire (&filesys_lock);
   size_t num_pages = pg_range_num (file_length (supp_curr->file));
   lock_release (&filesys_lock);

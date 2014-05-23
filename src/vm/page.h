@@ -46,6 +46,9 @@ struct supp_pte
     mapid_t mapping; /* Negative if this page was not mmaped; otherwise,
                         the id of the mapping. */
     bool pinned;
+    bool being_evicted;
+    struct condition done_evicting;
+    struct lock l;
     struct hash_elem hash_elem;
   };
 
@@ -59,9 +62,8 @@ bool supp_pt_page_alloc_file (struct supp_pt *supp_pt, void *upage,
                             mapid_t mapid, bool writable);
 bool supp_pt_page_calloc (struct supp_pt *supp_pt, void *upage, bool writable);
 
-/* Writes the contents of the supplied mapping to the filesystem,
-   if said contents are dirty. */
-void supp_pt_write_if_dirty (struct supp_pte *supp_pte);
+/* Writes the contents of the supplied mapping to the filesystem. */
+void supp_pt_write (struct supp_pte *supp_pte);
 
 /* Creates a mapping between the provided upage and to an allocated
    kpage; returns the kpage. */
