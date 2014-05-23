@@ -160,7 +160,7 @@ page_fault (struct intr_frame *f)
       thread_exit ();
     }
 
-  // stack growth
+  /* stack growth TODO: Max stack addr */
   if (fault_addr < PHYS_BASE && fault_addr >= f->esp - 32)
     {
       if (supp_pt_lookup (&thread_current ()->supp_pt,

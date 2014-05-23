@@ -69,7 +69,7 @@ void *
 frame_evict (void)
 {
   struct frame *frame;
-  struct frame *evicted_frame = NULL;
+  bool found_frame = false;
   struct list_elem *e;
   struct supp_pte *pte;
   bool write_to_disk = false;
@@ -78,7 +78,7 @@ frame_evict (void)
 
   /* Find an old(unaccessed) frame to evict */
   lock_acquire (&ftable_lock);
-  while (evicted_frame == NULL)
+  while (!found_frame)
     {
       e = list_front (&ftable);
       frame = list_entry(e, struct frame, elem);
@@ -101,7 +101,9 @@ frame_evict (void)
         }
       else
         {
-          evicted_frame = frame;
+          lock_acquire (&frame->t->supp_pt.lock);
+          frame->t->supp_pt.being_updated = true;
+          lock_release (&frame->t->supp_pt.lock);
           pte->being_evicted = true;
           if ((pte->file != NULL && !pte->writable))
             {
@@ -110,8 +112,8 @@ frame_evict (void)
           else if (supp_pt_is_valid_mapping (pte->mapping))
             {
               pte->loc = DISK;
-              if (pagedir_is_dirty (evicted_frame->t->pagedir,
-                evicted_frame->upage))
+              if (pagedir_is_dirty (frame->t->pagedir,
+                frame->upage))
                 {
                   write_to_disk = true;
                 }
@@ -121,46 +123,56 @@ frame_evict (void)
               pte->loc = SWAP;
               write_to_swap = true;
             }
-          pagedir_clear_page (evicted_frame->t->pagedir,
-            evicted_frame->upage);
+          pagedir_clear_page (frame->t->pagedir,
+            frame->upage);
           lock_release (&pte->l);
           list_pop_front (&ftable);
+          found_frame = true;
         }
     }
   lock_release (&ftable_lock);
 
   if (write_to_swap)
     {
-      swap_slot_index = swap_write_page (evicted_frame->kpage);
+      swap_slot_index = swap_write_page (frame->kpage);
     }
   else if (write_to_disk)
     {
       supp_pt_write (pte);
     }
 
+  /* Acquire supp_pte lock. */
   lock_acquire (&pte->l);
   pte->swap_slot_index = swap_slot_index;
   pte->being_evicted = false;
   cond_signal (&pte->done_evicting, &pte->l);
   lock_release (&pte->l);
 
-  memset (evicted_frame->kpage, 0, PGSIZE);
+  lock_acquire (&frame->t->supp_pt.lock);
+  frame->t->supp_pt.being_updated = false;
+  cond_signal (&frame->t->supp_pt.done_updating, &frame->t->supp_pt.lock);
+  lock_release (&frame->t->supp_pt.lock);
 
+  memset (frame->kpage, 0, PGSIZE);
 #ifndef NDEBUG
-  memset (evicted_frame->kpage, 0xcc, PGSIZE);
+  memset (frame->kpage, 0xcc, PGSIZE);
 #endif
-  return evicted_frame;
+  return frame;
 }
 
 static void
 frame_unalloc (struct frame *f)
 {
+  ASSERT (is_user_vaddr (f->upage));
+  ASSERT (pagedir_get_page (f->t->pagedir, f->upage) == f->kpage);
+
   if (pagedir_is_dirty (f->t->pagedir, f->upage))
     {
+      /* TODO: I'm holding the ftable lock right now! */
       supp_pt_write (supp_pt_lookup (&f->t->supp_pt, f->upage));
     }
-  palloc_free_page (f->kpage);
   pagedir_clear_page (f->t->pagedir, f->upage);
+  palloc_free_page (f->kpage);
   free (f);
 }
 

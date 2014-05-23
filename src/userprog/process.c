@@ -202,7 +202,7 @@ process_exit (void)
       }
     }
   free (cur->fd_table);
-  
+
   lock_acquire (&filesys_lock);
   file_close (cur->executable);
   lock_release (&filesys_lock);

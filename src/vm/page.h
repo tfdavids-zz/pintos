@@ -27,6 +27,8 @@ struct supp_pt
   {
     struct hash h;
     struct lock lock;
+    bool being_updated;
+    struct condition done_updating;
   };
 
 struct supp_pte

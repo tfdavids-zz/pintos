@@ -62,6 +62,7 @@ supp_pt_free_func (struct hash_elem *e, void *aux)
 
 
   /* Free the entry itself. */
+  /* TODO: I can't do this while I'm being evicted! */
   free (supp_pte);
 }
 
@@ -69,6 +70,8 @@ bool
 supp_pt_init (struct supp_pt *supp_pt)
 {
   lock_init (&supp_pt->lock);
+  cond_init (&supp_pt->done_updating);
+  supp_pt->being_updated = false;
   return hash_init (&supp_pt->h, supp_pt_hash_func, supp_pt_less_func, NULL);
 }
 
@@ -76,6 +79,10 @@ void
 supp_pt_destroy (struct supp_pt *supp_pt)
 {
   lock_acquire (&supp_pt->lock);
+  while (supp_pt->being_updated)
+    {
+      cond_wait (&supp_pt->done_updating, &supp_pt->lock);
+    }
   hash_destroy (&supp_pt->h, supp_pt_free_func);
   lock_release (&supp_pt->lock);
 }
@@ -119,7 +126,7 @@ supp_pt_fetch (struct supp_pte *e, void *kpage)
         memset (kpage, 0, PGSIZE);
         break;
       default:
-        NOT_REACHED () ;
+        NOT_REACHED ();
     }
 }
 
@@ -180,8 +187,6 @@ supp_pt_page_alloc (struct supp_pt *supp_pt, void *upage, enum data_loc loc,
 void
 supp_pt_write (struct supp_pte *supp_pte)
 {
-  struct thread *t = thread_current ();
-
   if (supp_pt_is_valid_mapping (supp_pte->mapping))
     {
       lock_acquire (&filesys_lock);
@@ -206,13 +211,8 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
     {
       return false;
     }
-  e->pinned = true;
 
   lock_acquire (&e->l);
-  while (e->being_evicted)
-    {
-      cond_wait (&e->done_evicting, &e->l);
-    }
   e->pinned = true;
   lock_release (&e->l);
 
@@ -222,7 +222,13 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
     {
       ASSERT (false);
     }
-  /* TODO: Synchronization. */
+
+  lock_acquire (&e->l);
+  while (e->being_evicted)
+    {
+      cond_wait (&e->done_evicting, &e->l);
+    }
+  lock_release (&e->l);
 
   supp_pt_fetch (e, kpage);
   lock_acquire (&e->l);
