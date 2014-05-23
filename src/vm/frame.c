@@ -102,7 +102,7 @@ frame_evict (void)
       else
         {
           lock_acquire (&frame->t->supp_pt.lock);
-          frame->t->supp_pt.being_updated = true;
+          frame->t->supp_pt.num_updating++;
           lock_release (&frame->t->supp_pt.lock);
           pte->being_evicted = true;
           if ((pte->file != NULL && !pte->writable))
@@ -149,8 +149,11 @@ frame_evict (void)
   lock_release (&pte->l);
 
   lock_acquire (&frame->t->supp_pt.lock);
-  frame->t->supp_pt.being_updated = false;
-  cond_signal (&frame->t->supp_pt.done_updating, &frame->t->supp_pt.lock);
+  frame->t->supp_pt.num_updating--;
+  if (frame->t->supp_pt.num_updating == 0)
+    {
+      cond_signal (&frame->t->supp_pt.done_updating, &frame->t->supp_pt.lock);
+    }
   lock_release (&frame->t->supp_pt.lock);
 
   memset (frame->kpage, 0, PGSIZE);

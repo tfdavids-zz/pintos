@@ -71,7 +71,7 @@ supp_pt_init (struct supp_pt *supp_pt)
 {
   lock_init (&supp_pt->lock);
   cond_init (&supp_pt->done_updating);
-  supp_pt->being_updated = false;
+  supp_pt->num_updating = 0;
   return hash_init (&supp_pt->h, supp_pt_hash_func, supp_pt_less_func, NULL);
 }
 
@@ -79,7 +79,7 @@ void
 supp_pt_destroy (struct supp_pt *supp_pt)
 {
   lock_acquire (&supp_pt->lock);
-  while (supp_pt->being_updated)
+  while (supp_pt->num_updating > 0)
     {
       cond_wait (&supp_pt->done_updating, &supp_pt->lock);
     }
