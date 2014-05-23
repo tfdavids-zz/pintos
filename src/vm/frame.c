@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "vm/frame.h"
@@ -23,8 +24,6 @@ struct frame
     void *upage;
     struct list_elem elem; // list_elem for frame table
     struct thread *t;
-    bool pinned;
-    // TODO: identifier for process?
   };
 
 void
@@ -57,7 +56,6 @@ frame_alloc (void *upage)
 
   frame->upage = upage;
   frame->t = thread_current ();
-  frame->pinned = false;
   /* TODO: Process identifier. */
   lock_acquire (&ftable_lock);
   list_push_back (&ftable, &frame->elem); // add frame to our frame table
@@ -73,6 +71,8 @@ frame_evict (void)
   struct frame *evicted_frame = NULL;
   struct list_elem *e;
   struct supp_pte *pte;
+  bool write_to_swap = false;
+  int swap_slot_index;
 
   /* Find an old(unaccessed) frame to evict */
   lock_acquire (&ftable_lock);
@@ -81,46 +81,55 @@ frame_evict (void)
       e = list_front (&ftable);
       frame = list_entry(e, struct frame, elem);
       pte = supp_pt_lookup (&frame->t->supp_pt, frame->upage);
+      lock_acquire (&pte->l);
       if (pte->pinned)
         {
+          lock_release (&pte->l);
           list_push_back(&ftable, list_pop_front (&ftable));
         }
       else if (pagedir_is_accessed (frame->t->pagedir, frame->upage))
-        {              
+        {
           pagedir_set_accessed (frame->t->pagedir, frame->upage, false);
+          lock_release (&pte->l);
           list_push_back(&ftable, list_pop_front (&ftable));
         }
       else
         {
           evicted_frame = frame;
-          list_pop_front (&ftable);
-
-          /* TODO: Get this synchronization right. */
+          pte->being_evicted = true;
           pagedir_clear_page (evicted_frame->t->pagedir, evicted_frame->upage);
-
-          /* Use the filesystem as a backing store for RO data and for mmap-ed
-             files, when appropriate. */
           if ((pte->file != NULL && !pte->writable) ||
-              (supp_pt_is_valid_mapping (pte->mapping) && !pagedir_is_dirty (
-                evicted_frame->t->pagedir, evicted_frame->upage)))
+              (supp_pt_is_valid_mapping (pte->mapping) &&
+               !pagedir_is_dirty (evicted_frame->t->pagedir, evicted_frame->upage)))
             {
               pte->loc = DISK;
             }
           else
             {
               pte->loc = SWAP;
-              pte->swap_slot_index = swap_write_page (evicted_frame->kpage);
+              write_to_swap = true;
             }
+          lock_release (&pte->l);
+          list_pop_front (&ftable);
         }
     }
   lock_release (&ftable_lock);
+  if (write_to_swap)
+    {
+      swap_slot_index = swap_write_page (evicted_frame->kpage);
+    }
 
+  lock_acquire (&pte->l);
+  pte->swap_slot_index = swap_slot_index;
+  lock_release (&pte->l);
 
-  /* Swap out the page if necessary.*/
-  /* TODO: Get this right. */
+  /* Use the filesystem as a backing store for RO data and for mmap-ed
+     files, when appropriate. */
+  lock_acquire (&pte->l);
+  pte->being_evicted = false;
+  cond_signal (&pte->done_evicting, &pte->l);
+  lock_release (&pte->l);
 
-
-  /* TODO should it be cc or 0 ? */
   memset (evicted_frame->kpage, 0, PGSIZE);
 
 #ifndef NDEBUG

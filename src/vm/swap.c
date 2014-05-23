@@ -32,7 +32,7 @@ void swap_init (void)
 
 }
 
-size_t swap_write_page (void *upage)
+size_t swap_write_page (void *kpage)
 {
   lock_acquire (&swap_slots_lock);
   size_t free_slot_index = bitmap_scan_and_flip (swap_slots, 0, 1, false);
@@ -46,7 +46,7 @@ size_t swap_write_page (void *upage)
     {
       block_write (swap_device,
                    free_slot_index * sectors_per_page + i,
-                   upage + i * BLOCK_SECTOR_SIZE);
+                   kpage + i * BLOCK_SECTOR_SIZE);
     }
   return free_slot_index;
 }

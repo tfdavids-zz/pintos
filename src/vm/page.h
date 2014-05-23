@@ -7,6 +7,7 @@
 #include "devices/block.h"
 #include "filesys/off_t.h"
 #include "filesys/file.h"
+#include "threads/synch.h"
 
 /* On a page fault, the kernel looks up the virtual page that faulted in the
  * supplemental page table to find out what data should be there. This means
@@ -40,6 +41,9 @@ struct supp_pte
     mapid_t mapping; /* Negative if this page was not mmaped; otherwise,
                         the id of the mapping. */
     bool pinned;
+    bool being_evicted;
+    struct condition done_evicting;
+    struct lock l;
     struct hash_elem hash_elem;
   };
 

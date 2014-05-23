@@ -8,6 +8,7 @@
 #include "filesys/off_t.h"
 #include "filesys/file.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
@@ -178,6 +179,9 @@ supp_pt_page_alloc (struct hash *h, void *upage, enum data_loc loc,
   e->mapping = mapid;
   e->writable = writable;
   e->pinned = false;
+  e->being_evicted = false;
+  lock_init (&e->l);
+  cond_init (&e->done_evicting);
 
   /* There should not already exist a supp_pte
      for this upage in the supplementary page table. */
@@ -200,11 +204,18 @@ page_handle_fault (struct hash *h, void *upage)
 {
   ASSERT (is_user_vaddr (upage));
   struct supp_pte *e = supp_pt_lookup (h, upage);
-  e->pinned = true;
   if (e == NULL)
     {
       return false;
     }
+
+  lock_acquire (&e->l);
+  while (e->being_evicted)
+    {
+      cond_wait (&e->done_evicting, &e->l);
+    }
+  e->pinned = true;
+  lock_release (&e->l);
 
   struct thread *t = thread_current ();
   void *kpage = frame_alloc (upage);
@@ -215,17 +226,20 @@ page_handle_fault (struct hash *h, void *upage)
   /* TODO: Synchronization. */
 
   supp_pt_fetch (e, kpage);
+  lock_acquire (&e->l);
   pagedir_set_dirty (t->pagedir, upage, false);
   if (pagedir_set_page (t->pagedir,
     upage, kpage, e->writable))
     {
       e->loc = PRESENT;
       e->pinned = false;
+      lock_release (&e->l);
       return true;
     }
   else
     {
       e->pinned = false;
+      lock_release (&e->l);
       return false;
     }
 }
