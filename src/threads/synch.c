@@ -439,7 +439,7 @@ void rw_init (struct rw_lock *lock)
   lock->writing = false;
 }
 
-void rw_reader_lock (struct rw_lock *lock)
+void rw_reader_lock_acquire (struct rw_lock *lock)
 {
   lock_acquire (&lock->l);
   while (lock->num_writers_waiting > 0 || lock->writing)
@@ -450,7 +450,7 @@ void rw_reader_lock (struct rw_lock *lock)
   lock_release (&lock->l);
 }
 
-void rw_reader_unlock (struct rw_lock *lock)
+void rw_reader_lock_release (struct rw_lock *lock)
 {
   lock_acquire (&lock->l);
   lock->num_reading--;
@@ -461,7 +461,7 @@ void rw_reader_unlock (struct rw_lock *lock)
   lock_release (&lock->l);
 }
 
-void rw_writer_lock (struct rw_lock *lock)
+void rw_writer_lock_acquire (struct rw_lock *lock)
 {
   lock_acquire (&lock->l);
   lock->num_writers_waiting++;
@@ -474,7 +474,7 @@ void rw_writer_lock (struct rw_lock *lock)
   lock_release (&lock->l);
 }
 
-void rw_writer_unlock (struct rw_lock *lock)
+void rw_writer_lock_release (struct rw_lock *lock)
 {
   lock_acquire (&lock->l);
   lock->writing = false;

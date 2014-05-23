@@ -87,7 +87,7 @@ frame_evict (void)
           list_push_back(&ftable, list_pop_front (&ftable));
         }
       else if (pagedir_is_accessed (frame->t->pagedir, frame->upage))
-        {              
+        {
           pagedir_set_accessed (frame->t->pagedir, frame->upage, false);
           list_push_back(&ftable, list_pop_front (&ftable));
         }
@@ -97,21 +97,30 @@ frame_evict (void)
           list_pop_front (&ftable);
 
           /* TODO: Get this synchronization right. */
-          pagedir_clear_page (evicted_frame->t->pagedir, evicted_frame->upage);
+          struct thread *t = evicted_frame->t;
+
+          lock_acquire (&t->supp_pt.lock);
+          pte = supp_pt_lookup (
+            &t->supp_pt, evicted_frame->upage);
 
           /* Use the filesystem as a backing store for RO data and for mmap-ed
              files, when appropriate. */
           if ((pte->file != NULL && !pte->writable) ||
-              (supp_pt_is_valid_mapping (pte->mapping) && !pagedir_is_dirty (
-                evicted_frame->t->pagedir, evicted_frame->upage)))
+              (supp_pt_is_valid_mapping (pte->mapping)))
             {
               pte->loc = DISK;
+              /* TODO: IO shouldn't block! */
+              supp_pt_write_if_dirty (pte);
             }
           else
             {
               pte->loc = SWAP;
+
+              /* TODO: It is wasteful to do IO here. */
               pte->swap_slot_index = swap_write_page (evicted_frame->kpage);
             }
+          pagedir_clear_page (t->pagedir, evicted_frame->upage);
+          lock_release (&t->supp_pt.lock);
         }
     }
   lock_release (&ftable_lock);
@@ -130,8 +139,20 @@ frame_evict (void)
   return evicted_frame;
 }
 
+static void
+frame_unalloc (struct frame *f)
+{
+  supp_pt_write_if_dirty (supp_pt_lookup (&f->t->supp_pt, f->upage));
+
+  palloc_free_page (f->kpage);
+  pagedir_clear_page (f->t->pagedir, f->upage);
+  free (f);
+}
+
 /* Free the page kpage and remove the corresponding entry
-   from our frame table. */
+   from our frame table.
+   NB: If no corresponding frame is found, then this function
+   has no side effects. */
 void
 frame_free (void *kpage)
 {
@@ -144,9 +165,31 @@ frame_free (void *kpage)
       if (f->kpage == kpage)
         {
           list_remove (&f->elem);
-          palloc_free_page (kpage);
-          free (f);
+          frame_unalloc (f);
           break;
+        }
+    }
+  lock_release (&ftable_lock);
+}
+
+/* Prunes the frame table of all frames allocated
+   for the given thread. */
+void
+frame_free_thread (struct thread *t)
+{
+  lock_acquire (&ftable_lock);
+  struct list_elem *e = list_begin (&ftable);
+  while (e != list_end (&ftable))
+    {
+      struct frame *f = list_entry (e, struct frame, elem);
+      if (f->t == t)
+        {
+          e = list_remove (&f->elem);
+          frame_unalloc (f);
+        }
+      else
+        {
+          e = list_next (e);
         }
     }
   lock_release (&ftable_lock);

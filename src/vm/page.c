@@ -29,7 +29,7 @@ static unsigned
 supp_pt_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
   struct supp_pte *pte = hash_entry (e, struct supp_pte, hash_elem);
-  return hash_bytes (&pte->address, sizeof(void *));
+  return hash_bytes (&pte->upage, sizeof(void *));
 }
 
 static bool
@@ -38,50 +38,25 @@ supp_pt_less_func (const struct hash_elem *a, const struct hash_elem *b,
 {
   struct supp_pte *pte_a = hash_entry (a, struct supp_pte, hash_elem);
   struct supp_pte *pte_b = hash_entry (b, struct supp_pte, hash_elem);
-  return hash_bytes (&pte_a->address, sizeof (void *)) <
-       hash_bytes (&pte_b->address, sizeof (void *));
+  return hash_bytes (&pte_a->upage, sizeof (void *)) <
+       hash_bytes (&pte_b->upage, sizeof (void *));
 }
 
 /* TODO: Verify that this frees everything that should be freed. */
+/* NB: This function does NOT free resources collected from the user-pool. */
 static void
 supp_pt_free_func (struct hash_elem *e, void *aux)
 {
   struct thread *t = thread_current ();
   struct supp_pte *supp_pte = hash_entry (e, struct supp_pte, hash_elem);
-  void *upage = supp_pte->address;
-
-  /* Write if dirty! */
-  if (supp_pte->mapping >= 0)
-    {
-      if (pagedir_is_dirty (t->pagedir, upage))
-        {
-          lock_acquire (&filesys_lock);
-          file_write_at (supp_pte->file, upage,
-            supp_pte->bytes, supp_pte->start);
-          lock_release (&filesys_lock);
-        }
-    }
+  void *upage = supp_pte->upage;
 
   /* Free whatever memory that this page occupied. */
   /* TODO: Synchronization. */
-  void *kpage;
-  switch (supp_pte->loc)
+  ASSERT (!pagedir_get_page (t->pagedir, upage));
+  if (supp_pte->loc == SWAP)
     {
-      case PRESENT:
-        kpage = pagedir_get_page (t->pagedir, upage);
-        ASSERT (kpage != NULL); 
-        frame_free (kpage);
-        pagedir_clear_page (t->pagedir, upage); /* Clear the mapping. */
-        break;
-      case SWAP:
-        /* TODO: Free swap. */
-        break;
-      case DISK:
-      case ZEROES:
-        /* TODO: What should be here, if anything? */
-        break;
-      default:
-        NOT_REACHED ();
+      /* TODO: Free swap. */
     }
 
 
@@ -92,22 +67,25 @@ supp_pt_free_func (struct hash_elem *e, void *aux)
 bool
 supp_pt_init (struct supp_pt *supp_pt)
 {
+  lock_init (&supp_pt->lock);
   return hash_init (&supp_pt->h, supp_pt_hash_func, supp_pt_less_func, NULL);
 }
 
 void
 supp_pt_destroy (struct supp_pt *supp_pt)
 {
+  lock_acquire (&supp_pt->lock);
   hash_destroy (&supp_pt->h, supp_pt_free_func);
+  lock_release (&supp_pt->lock);
 }
 
 struct supp_pte *
-supp_pt_lookup (struct supp_pt *supp_pt, void *address)
+supp_pt_lookup (struct supp_pt *supp_pt, void *upage)
 {
-  address = pg_round_down (address); // round down to page
+  upage = pg_round_down (upage); // round down to page
   
   struct supp_pte key;
-  key.address = address;
+  key.upage = upage;
 
   // find the element in our hash table corresponding to this page
   struct hash_elem *e = hash_find (&supp_pt->h, &key.hash_elem);
@@ -170,7 +148,7 @@ supp_pt_page_alloc (struct supp_pt *supp_pt, void *upage, enum data_loc loc,
       return NULL;
     }
 
-  e->address = upage;
+  e->upage = upage;
   e->loc = loc;
   e->file = file;
   e->start = start;
@@ -180,13 +158,37 @@ supp_pt_page_alloc (struct supp_pt *supp_pt, void *upage, enum data_loc loc,
   e->pinned = false;
 
   /* There should not already exist a supp_pte
-     for this upage in the supplementary page table. */
+     for this upage in the supplementary page table.
+     TODO: NB: Other process must acquire lock if lookup
+           would conflict with insertion.
+   */
+  lock_acquire (&supp_pt->lock);
   if (hash_insert (&supp_pt->h, &e->hash_elem) != NULL)
     {
       free (e);
-      return NULL;
+      e = NULL;
     }
+  lock_release (&supp_pt->lock);
   return e;
+}
+
+void
+supp_pt_write_if_dirty (struct supp_pte *supp_pte)
+{
+  struct thread *t = thread_current ();
+
+  /* Write if dirty! */
+  if (supp_pt_is_valid_mapping (supp_pte->mapping))
+    {
+      if (pagedir_is_dirty (t->pagedir, supp_pte->upage))
+        {
+          lock_acquire (&filesys_lock);
+          file_write_at (supp_pte->file, supp_pte->upage,
+            supp_pte->bytes, supp_pte->start);
+          lock_release (&filesys_lock);
+          pagedir_set_dirty (t->pagedir, supp_pte->upage, false);
+        }
+    }
 }
 
 bool
@@ -200,11 +202,11 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
 {
   ASSERT (is_user_vaddr (upage));
   struct supp_pte *e = supp_pt_lookup (supp_pt, upage);
-  e->pinned = true;
   if (e == NULL)
     {
       return false;
     }
+  e->pinned = true;
 
   struct thread *t = thread_current ();
   void *kpage = frame_alloc (upage);
@@ -219,7 +221,6 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
   if (pagedir_set_page (t->pagedir,
     upage, kpage, e->writable))
     {
-      e->loc = PRESENT;
       e->pinned = false;
       return true;
     }
@@ -230,23 +231,31 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
     }
 }
 
-bool
+void
 supp_pt_page_free (struct supp_pt *supp_pt, void *upage)
 {
-  struct supp_pte key;
-  key.address = upage;
-  struct supp_pte *supp_pte =
-    hash_entry (hash_delete (&supp_pt->h, &key.hash_elem),
-      struct supp_pte, hash_elem);
+  /* Retrieve the corresponding entry. */
+  struct supp_pte *supp_pte = supp_pt_lookup (supp_pt, upage);
+  ASSERT (supp_pte != NULL)
 
-  /* First retrieve the frame. Then free it. Then free the entry? */
-
-  if (supp_pte)
+  /* If there exists a frame for the entry, delete it before proceeding. */
+  void *kpage = pagedir_get_page (thread_current ()->pagedir, upage);
+  if (kpage)
     {
-      supp_pt_free_func (&supp_pte->hash_elem, NULL);
-      return true;
+      frame_free (kpage);
     }
-  return false;
+
+  /* Remove the supp_pte entry from the supp_pt table. */
+  struct supp_pte key;
+  key.upage = upage;
+
+  lock_acquire (&supp_pt->lock);
+  hash_delete (&supp_pt->h, &key.hash_elem);
+  lock_release (&supp_pt->lock);
+
+  /* Free the entry and any backing store data for upage. */
+  /* TODO: Only free data if frame_free didn't free anything. */
+  supp_pt_free_func (&supp_pte->hash_elem, NULL);
 }
 
 bool
@@ -273,9 +282,8 @@ supp_pt_munmap (struct supp_pt *supp_pt, void *first_mmap_page)
   size_t i;
   for (i = 0; i < num_pages; i++)
     {
-      /* TODO: Remove assert wrapping. */
-      ASSERT(supp_pt_page_free (supp_pt, (void *)
-        ((uintptr_t)first_mmap_page + i * PGSIZE)));
+      supp_pt_page_free (supp_pt, (void *)
+        ((uintptr_t)first_mmap_page + i * PGSIZE));
     }
 
   lock_acquire (&filesys_lock);

@@ -21,18 +21,17 @@ enum data_loc
     DISK,
     ZEROES,
     SWAP,
-    PRESENT,
   };
 
 struct supp_pt
   {
     struct hash h;
-    struct rw_lock rw_lock;
+    struct lock lock;
   };
 
 struct supp_pte
   {
-    void *address;
+    void *upage;
     bool writable;
 
     enum data_loc loc;
@@ -60,6 +59,10 @@ bool supp_pt_page_alloc_file (struct supp_pt *supp_pt, void *upage,
                             mapid_t mapid, bool writable);
 bool supp_pt_page_calloc (struct supp_pt *supp_pt, void *upage, bool writable);
 
+/* Writes the contents of the supplied mapping to the filesystem,
+   if said contents are dirty. */
+void supp_pt_write_if_dirty (struct supp_pte *supp_pte);
+
 /* Creates a mapping between the provided upage and to an allocated
    kpage; returns the kpage. */
 void *page_force_load (struct supp_pt *supp_pt, void *upage);
@@ -71,11 +74,11 @@ bool page_handle_fault (struct supp_pt *supp_pt, void *upage);
 // check and see if a page has an entry in h
 bool supp_pt_page_exists (struct supp_pt *supp_pt, void *upage);
 
-bool supp_pt_page_free (struct supp_pt *supp_pt, void *upage);
+void supp_pt_page_free (struct supp_pt *supp_pt, void *upage);
 
 // free a virtual page with address upage
 bool supp_pt_munmap (struct supp_pt *supp_pt, void *first_mmap_page);
 bool supp_pt_is_valid_mapping (mapid_t mapping);
 
-struct supp_pte *supp_pt_lookup (struct supp_pt *supp_pt, void *address);
+struct supp_pte *supp_pt_lookup (struct supp_pt *supp_pt, void *upage);
 #endif /* VM_PAGE_H */

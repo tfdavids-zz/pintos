@@ -154,7 +154,7 @@ page_fault (struct intr_frame *f)
 
   /* Terminate the user process if it attempts to write to a read-only
      page, or if it faulted on a kernel address.*/
-  if (!not_present || is_kernel_vaddr (fault_addr))
+  if (!not_present || is_kernel_vaddr (fault_addr) || fault_addr == NULL)
     {
       thread_current ()->exit_status = -1;
       thread_exit ();

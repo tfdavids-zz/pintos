@@ -207,6 +207,12 @@ process_exit (void)
   file_close (cur->executable);
   lock_release (&filesys_lock);
 
+  /* Free all frames BEFORE destroying the supplementary page table.
+     This is to prevent races in which the eviction algorithm attempts
+     to access our supplementary page table while we are in the process of
+     destroying it. */
+  frame_free_thread (cur);
+
   /* TODO: Verify that we are freeing all that we should free, and that
            there are no odd race conditions or anything here. */
   supp_pt = &cur->supp_pt;

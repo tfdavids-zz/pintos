@@ -51,15 +51,16 @@ struct rw_lock
     struct condition c_r;
     struct condition c_w;
     size_t num_writers_waiting;
+    size_t num_readers_waiting;
     size_t num_reading;
     bool writing;
   };
 
 void rw_init (struct rw_lock *);
-void rw_reader_lock (struct rw_lock *);
-void rw_reader_unlock (struct rw_lock *);
-void rw_writer_lock (struct rw_lock *);
-void rw_writer_unlock (struct rw_lock *);
+void rw_reader_lock_acquire (struct rw_lock *);
+void rw_reader_lock_release (struct rw_lock *);
+void rw_writer_lock_acquire (struct rw_lock *);
+void rw_writer_lock_release (struct rw_lock *);
 
 /* Optimization barrier.
 
