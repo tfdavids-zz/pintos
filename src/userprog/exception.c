@@ -161,10 +161,10 @@ page_fault (struct intr_frame *f)
     }
 
   /* stack growth TODO: Max stack addr */
-  if (fault_addr < PHYS_BASE && fault_addr >= f->esp - 32)
+  if (fault_addr > STACK_LIMIT && fault_addr >= f->esp - 32)
     {
       if (supp_pt_lookup (&thread_current ()->supp_pt,
-                          pg_round_down (fault_addr)) == NULL){  
+                          pg_round_down (fault_addr)) == NULL){
         success = supp_pt_page_calloc (&thread_current ()->supp_pt,
                                        pg_round_down (fault_addr), true);
         if (!success)

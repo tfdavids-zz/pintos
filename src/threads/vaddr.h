@@ -58,6 +58,8 @@ static inline size_t pg_range_num (size_t length) {
    virtual address space belongs to the kernel. */
 #define	PHYS_BASE ((void *) LOADER_PHYS_BASE)
 
+#define STACK_LIMIT ((void *) (((uintptr_t) (PHYS_BASE)) - 0x800000))
+
 /* Returns true if VADDR is a user virtual address. */
 static inline bool
 is_user_vaddr (const void *vaddr) 

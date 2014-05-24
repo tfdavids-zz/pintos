@@ -76,3 +76,18 @@ bool swap_load_page (size_t slot_index, void *kpage)
 
   return true;
 }
+
+/* Frees the block at slot_index */
+bool swap_free (size_t slot_index)
+{
+  lock_acquire (&swap_slots_lock);
+  if (slot_index > num_swap_slots ||
+      !bitmap_test(swap_slots, slot_index))
+    {
+      lock_release (&swap_slots_lock);
+      return false;
+    }
+  bitmap_set (swap_slots, slot_index, false);
+  lock_release (&swap_slots_lock);
+  return true;
+}

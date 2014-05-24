@@ -39,9 +39,12 @@ static void sys_close (int fd);
 static void sys_mmap (struct intr_frame *f, int fd, void *addr);
 static void sys_munmap (mapid_t mapping);
 
-static bool is_valid_ptr (const void *ptr);
-static bool is_valid_range (const void *ptr, size_t len);
-static bool is_valid_string (const char *ptr);
+static bool is_valid_ptr (const void *ptr, struct intr_frame *f);
+static bool is_valid_range (const void *ptr, size_t len, struct intr_frame *f);
+static bool is_valid_string (const char *ptr, struct intr_frame *f);
+static bool unpin_ptr (const void *ptr);
+static bool unpin_range (const void *ptr, size_t len);
+static bool unpin_string (const char *ptr);
 static inline void exit_on (bool condition);
 static inline void exit_on_file (bool condition);
 
@@ -86,7 +89,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   void *intr_esp = f->esp;
 
   /* Extract the system call number and the arguments, if any. */
-  exit_on (!is_valid_range (intr_esp, sizeof (uint32_t)));
+  exit_on (!is_valid_range (intr_esp, sizeof (uint32_t), f));
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
 
@@ -94,7 +97,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   for (i = 0; i < arg_num; i++)
     {
       intr_esp = (uint32_t *)intr_esp + 1;
-      exit_on (!is_valid_range (intr_esp, sizeof (uint32_t)));
+      exit_on (!is_valid_range (intr_esp, sizeof (uint32_t), f));
       args[i] = *((uint32_t *)intr_esp);
     }
 
@@ -155,29 +158,63 @@ syscall_handler (struct intr_frame *f UNUSED)
         exit_on (true); /* Unimplemented syscall --
                               force the thread to exit. */
     }
+  /* Unpin syscall arguments */
+  intr_esp = f->esp;
+  for (i = 0; i <= arg_num; i++)
+    {
+      unpin_range (intr_esp, sizeof (uint32_t));
+      intr_esp = (uint32_t *)intr_esp + 1;
+    }
 }
 
 /* Returns true iff the suplied pointer points to a valid mapped
    user address. */
 static bool
-is_valid_ptr (const void *ptr)
+is_valid_ptr (const void *ptr, struct intr_frame *f)
 {
   /* TODO: supp_pte can exist but it's possible that ptr is not mapped.
      this could cause a page fault when ptr is later accessed. */
-  return ((ptr != NULL) &&
-    (is_user_vaddr (ptr)) &&
-    (supp_pt_page_exists (&thread_current ()->supp_pt, ptr)));
+  struct supp_pte *e;
+
+  if ((ptr == NULL) || !is_user_vaddr (ptr))
+    {
+      return false;
+    }
+  if (ptr >= f->esp - 32 && ptr > STACK_LIMIT)
+    {
+      if (supp_pt_lookup (&thread_current ()->supp_pt,
+                          pg_round_down (ptr)) == NULL)
+        {
+          if (!supp_pt_page_calloc (&thread_current ()->supp_pt,
+                                   pg_round_down (ptr), true))
+            {
+              thread_current ()->exit_status = -1;
+              thread_exit ();
+            }
+        }
+    }
+
+  if ((e = supp_pt_lookup (&thread_current ()->supp_pt, ptr)) == NULL)
+    {
+      return false;
+    }
+
+  /* Pin pages, and keep them pinned untill done with the system call */
+  e->pinned = true;
+    /* stack growth TODO: Max stack addr */
+
+  return page_force_load (e);
 }
 
 /* Returns true iff every address within the range
    is a valid mapped user address. */
 static bool
-is_valid_range (const void *ptr, size_t len)
+is_valid_range (const void *ptr, size_t len,  struct intr_frame *f)
 {
   size_t i;
   for (i = 0; i < len; i++)
     {
-      if (!is_valid_ptr ((uint8_t *)ptr + i))
+      if (!is_valid_ptr ((uint8_t *)ptr + i, f))
         {
           return false;
         }
@@ -188,9 +225,9 @@ is_valid_range (const void *ptr, size_t len)
 /* Returns true iff the supplied string spans
    valid mapped user memory. */
 static bool
-is_valid_string (const char *str)
+is_valid_string (const char *str,  struct intr_frame *f)
 {
-  if (!is_valid_ptr (str))
+  if (!is_valid_ptr (str, f))
     {
       return false;
     }
@@ -198,7 +235,58 @@ is_valid_string (const char *str)
   while (*str != '\0')
     {
       str++;
-      if (!is_valid_ptr(str))
+      if (!is_valid_ptr(str, f))
+        {
+          return false;
+        }
+    }
+  return true;
+}
+
+/* Finds frame for given ptr and unpins it */
+static bool
+unpin_ptr (const void *ptr)
+{
+  struct supp_pte *e;
+
+  if ((e = supp_pt_lookup (&thread_current ()->supp_pt, ptr)) == NULL)
+    {
+      return false;
+    }
+
+  /* Pin pages, and keep them pinned untill done with the system call */
+  e->pinned = false;
+  return true;
+}
+
+/* Unpins all ptrs in given range. */
+static bool
+unpin_range (const void *ptr, size_t len)
+{
+  size_t i;
+  for (i = 0; i < len; i++)
+    {
+      if (!unpin_ptr ((uint8_t *)ptr + i))
+        {
+          return false;
+        }
+    }
+  return true;
+}
+
+/* Unpins all ptrs in given string. */
+static bool
+unpin_string (const char *str)
+{
+  if (!unpin_ptr (str))
+    {
+      return false;
+    }
+
+  while (*str != '\0')
+    {
+      str++;
+      if (!unpin_ptr(str))
         {
           return false;
         }
@@ -222,8 +310,9 @@ sys_exit (int status)
 static void
 sys_exec (struct intr_frame *f, const char *file)
 {
-  exit_on (!is_valid_string(file));
+  exit_on (!is_valid_string(file, f));
   f->eax = process_execute (file);
+  unpin_string (file);
 }
 
 static void
@@ -236,28 +325,31 @@ static void
 sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size)
 {
-  exit_on (!is_valid_string (file));
+  exit_on (!is_valid_string (file, f));
   lock_acquire (&filesys_lock);
   f->eax = filesys_create (file, initial_size);
   lock_release (&filesys_lock);
+  unpin_string (file);
 }
 
 static void
 sys_remove (struct intr_frame *f, const char *file)
 {
-  exit_on (!is_valid_string (file));
+  exit_on (!is_valid_string (file, f));
   lock_acquire (&filesys_lock);
   f->eax = filesys_remove (file);
   lock_release (&filesys_lock);
+  unpin_string (file);
 }
 
 static void
 sys_open (struct intr_frame *f, const char *file)
 {
-  exit_on (!is_valid_string (file));
+  exit_on (!is_valid_string (file, f));
   lock_acquire (&filesys_lock);
   f->eax = fd_table_open (file);
   lock_release (&filesys_lock);
+  unpin_string (file);
 }
 
 static void
@@ -275,7 +367,7 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
   unsigned length)
 {
   exit_on (fd == STDOUT_FILENO);
-  exit_on (!is_valid_range (buffer, length));
+  exit_on (!is_valid_range (buffer, length, f));
 
   /* Read from STDIN if appropriate. */
   if (fd == STDIN_FILENO)
@@ -309,6 +401,7 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
       lock_release (&filesys_lock);
       f->eax = read_bytes;
     }
+  unpin_range (buffer, length);
 }
 
 
@@ -316,7 +409,7 @@ static void
 sys_write (struct intr_frame *f, int fd, const void *buffer,
   unsigned length)
 {
-  exit_on (!is_valid_range (buffer, length));
+  exit_on (!is_valid_range (buffer, length, f));
 
   /* Read from STDOUT if appropriate. */
   if (fd == STDOUT_FILENO)
@@ -346,6 +439,7 @@ sys_write (struct intr_frame *f, int fd, const void *buffer,
       lock_release (&filesys_lock);
       f->eax = written_bytes;
     }
+  unpin_range (buffer, length);
 }
 
 static void

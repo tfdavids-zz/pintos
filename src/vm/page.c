@@ -207,17 +207,28 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
 {
   ASSERT (is_user_vaddr (upage));
   struct supp_pte *e = supp_pt_lookup (supp_pt, upage);
+  bool success = false;
   if (e == NULL)
     {
       return false;
     }
 
-  lock_acquire (&e->l);
   e->pinned = true;
-  lock_release (&e->l);
+  success = page_force_load (e);
+  e->pinned = false;
 
+  return success;
+}
+
+bool
+page_force_load (struct supp_pte *e)
+{
   struct thread *t = thread_current ();
-  void *kpage = frame_alloc (upage);
+  /* Do not load if already in memory */
+  if (pagedir_get_page(t->pagedir, e->upage))
+    return true;
+
+  void *kpage = frame_alloc (e->upage);
   if (!kpage)
     {
       ASSERT (false);
@@ -231,19 +242,15 @@ page_handle_fault (struct supp_pt *supp_pt, void *upage)
   lock_release (&e->l);
 
   supp_pt_fetch (e, kpage);
-  lock_acquire (&e->l);
-  pagedir_set_dirty (t->pagedir, upage, false);
+
+  pagedir_set_dirty (t->pagedir, e->upage, false);
   if (pagedir_set_page (t->pagedir,
-    upage, kpage, e->writable))
+    e->upage, kpage, e->writable))
     {
-      e->pinned = false;
-      lock_release (&e->l);
       return true;
     }
   else
     {
-      e->pinned = false;
-      lock_release (&e->l);
       return false;
     }
 }

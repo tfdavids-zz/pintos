@@ -67,9 +67,8 @@ bool supp_pt_page_calloc (struct supp_pt *supp_pt, void *upage, bool writable);
 /* Writes the contents of the supplied mapping to the filesystem. */
 void supp_pt_write (struct supp_pte *supp_pte);
 
-/* Creates a mapping between the provided upage and to an allocated
-   kpage; returns the kpage. */
-void *page_force_load (struct supp_pt *supp_pt, void *upage);
+/* Loads given supp_pt entry into memroy*/
+bool page_force_load (struct supp_pte *e);
 
 // handle a page fault (obtain a frame, fetch the right data into the frame,
 // point the VA to the frame, and return success)
