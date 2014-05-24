@@ -108,6 +108,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   lock_init (&filesys_lock);
+
   int i;
   for (i = 0; i < NUM_PRIO; i++) {
     list_init (&ready_lists[i]);

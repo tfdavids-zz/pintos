@@ -182,6 +182,7 @@ page_fault (struct intr_frame *f)
     return;
   }
 
+  /* TODO: Perhaps just kill the user? */
   /* Else we have a really bad page fault, so panic */
   thread_current ()->exit_status = -1;
   printf ("Page fault at %p: %s error %s page in %s context.\n",

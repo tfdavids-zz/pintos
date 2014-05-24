@@ -57,7 +57,7 @@ supp_pt_free_func (struct hash_elem *e, void *aux)
   ASSERT (!pagedir_get_page (t->pagedir, upage));
   if (supp_pte->loc == SWAP)
     {
-      /* TODO: Free swap. */
+      swap_free (supp_pte->swap_slot_index);
     }
 
 
@@ -226,7 +226,9 @@ page_force_load (struct supp_pte *e)
   struct thread *t = thread_current ();
   /* Do not load if already in memory */
   if (pagedir_get_page(t->pagedir, e->upage))
-    return true;
+    {
+      return true;
+    }
 
   void *kpage = frame_alloc (e->upage);
   if (!kpage)

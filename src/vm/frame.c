@@ -104,6 +104,7 @@ frame_evict (void)
           lock_acquire (&frame->t->supp_pt.lock);
           frame->t->supp_pt.num_updating++;
           lock_release (&frame->t->supp_pt.lock);
+
           pte->being_evicted = true;
           if ((pte->file != NULL && !pte->writable))
             {
@@ -112,8 +113,7 @@ frame_evict (void)
           else if (supp_pt_is_valid_mapping (pte->mapping))
             {
               pte->loc = DISK;
-              if (pagedir_is_dirty (frame->t->pagedir,
-                frame->upage))
+              if (pagedir_is_dirty (frame->t->pagedir, frame->upage))
                 {
                   write_to_disk = true;
                 }
@@ -123,6 +123,7 @@ frame_evict (void)
               pte->loc = SWAP;
               write_to_swap = true;
             }
+
           pagedir_clear_page (frame->t->pagedir,
             frame->upage);
           lock_release (&pte->l);

@@ -39,9 +39,10 @@ static void sys_close (int fd);
 static void sys_mmap (struct intr_frame *f, int fd, void *addr);
 static void sys_munmap (mapid_t mapping);
 
-static bool is_valid_ptr (const void *ptr, struct intr_frame *f);
-static bool is_valid_range (const void *ptr, size_t len, struct intr_frame *f);
-static bool is_valid_string (const char *ptr, struct intr_frame *f);
+static bool ensure_valid_ptr (const void *ptr, struct intr_frame *f);
+static bool ensure_valid_range (const void *ptr, size_t len,
+                                struct intr_frame *f);
+static bool ensure_valid_string (const char *ptr, struct intr_frame *f);
 static bool unpin_ptr (const void *ptr);
 static bool unpin_range (const void *ptr, size_t len);
 static bool unpin_string (const char *ptr);
@@ -89,7 +90,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   void *intr_esp = f->esp;
 
   /* Extract the system call number and the arguments, if any. */
-  exit_on (!is_valid_range (intr_esp, sizeof (uint32_t), f));
+  exit_on (!ensure_valid_range (intr_esp, sizeof (uint32_t), f));
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
 
@@ -97,7 +98,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   for (i = 0; i < arg_num; i++)
     {
       intr_esp = (uint32_t *)intr_esp + 1;
-      exit_on (!is_valid_range (intr_esp, sizeof (uint32_t), f));
+      exit_on (!ensure_valid_range (intr_esp, sizeof (uint32_t), f));
       args[i] = *((uint32_t *)intr_esp);
     }
 
@@ -170,7 +171,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 /* Returns true iff the suplied pointer points to a valid mapped
    user address. */
 static bool
-is_valid_ptr (const void *ptr, struct intr_frame *f)
+ensure_valid_ptr (const void *ptr, struct intr_frame *f)
 {
   /* TODO: supp_pte can exist but it's possible that ptr is not mapped.
      this could cause a page fault when ptr is later accessed. */
@@ -180,6 +181,8 @@ is_valid_ptr (const void *ptr, struct intr_frame *f)
     {
       return false;
     }
+
+  /* TODO: Separate function. */
   if (ptr >= f->esp - 32 && ptr > STACK_LIMIT)
     {
       if (supp_pt_lookup (&thread_current ()->supp_pt,
@@ -201,26 +204,23 @@ is_valid_ptr (const void *ptr, struct intr_frame *f)
 
   /* Pin pages, and keep them pinned untill done with the system call */
   e->pinned = true;
-
-    /* stack growth TODO: Max stack addr */
-
   return page_force_load (e);
 }
 
 /* Returns true iff every address within the range
    is a valid mapped user address. */
 static bool
-is_valid_range (const void *ptr, size_t len,  struct intr_frame *f)
+ensure_valid_range (const void *ptr, size_t len,  struct intr_frame *f)
 {
   void* curr_page = pg_round_down (ptr);
-  size_t i;
-  while (curr_page < (uint8_t *)ptr + len)
+  while (curr_page < (void *)((uint8_t *)ptr + len))
     {
-      if (!is_valid_ptr (curr_page, f))
+      if (!ensure_valid_ptr (curr_page, f))
         {
+          /* TODO: unpin. */
           return false;
         }
-      curr_page = (uint8_t *)curr_page + PGSIZE;
+      curr_page = (void *)((uint8_t *)curr_page + PGSIZE);
     }
 
   return true;
@@ -229,9 +229,9 @@ is_valid_range (const void *ptr, size_t len,  struct intr_frame *f)
 /* Returns true iff the supplied string spans
    valid mapped user memory. */
 static bool
-is_valid_string (const char *str,  struct intr_frame *f)
+ensure_valid_string (const char *str,  struct intr_frame *f)
 {
-  if (!is_valid_ptr (str, f))
+  if (!ensure_valid_ptr (str, f))
     {
       return false;
     }
@@ -241,8 +241,9 @@ is_valid_string (const char *str,  struct intr_frame *f)
       str++;
       if (pg_round_down (str) == str)
         {
-          if (!is_valid_ptr(str, f))
+          if (!ensure_valid_ptr(str, f))
             {
+              /* TODO: unpin. */
               return false;
             }
         }
@@ -273,13 +274,13 @@ unpin_range (const void *ptr, size_t len)
 {
   void* curr_page = pg_round_down (ptr);
 
-  while (curr_page < (uint8_t *)ptr + len)
+  while (curr_page < (void *)((uint8_t *)ptr + len))
     {
       if (!unpin_ptr (curr_page))
         {
           return false;
         }
-      curr_page = (uint8_t *)curr_page + PGSIZE;
+      curr_page = (void *)((uint8_t *)curr_page + PGSIZE);
     }
   return true;
 }
@@ -323,7 +324,7 @@ sys_exit (int status)
 static void
 sys_exec (struct intr_frame *f, const char *file)
 {
-  exit_on (!is_valid_string(file, f));
+  exit_on (!ensure_valid_string(file, f));
   f->eax = process_execute (file);
   unpin_string (file);
 }
@@ -338,7 +339,7 @@ static void
 sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size)
 {
-  exit_on (!is_valid_string (file, f));
+  exit_on (!ensure_valid_string (file, f));
   lock_acquire (&filesys_lock);
   f->eax = filesys_create (file, initial_size);
   lock_release (&filesys_lock);
@@ -348,7 +349,7 @@ sys_create (struct intr_frame *f, const char *file,
 static void
 sys_remove (struct intr_frame *f, const char *file)
 {
-  exit_on (!is_valid_string (file, f));
+  exit_on (!ensure_valid_string (file, f));
   lock_acquire (&filesys_lock);
   f->eax = filesys_remove (file);
   lock_release (&filesys_lock);
@@ -358,7 +359,7 @@ sys_remove (struct intr_frame *f, const char *file)
 static void
 sys_open (struct intr_frame *f, const char *file)
 {
-  exit_on (!is_valid_string (file, f));
+  exit_on (!ensure_valid_string (file, f));
   lock_acquire (&filesys_lock);
   f->eax = fd_table_open (file);
   lock_release (&filesys_lock);
@@ -380,7 +381,7 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
   unsigned length)
 {
   exit_on (fd == STDOUT_FILENO);
-  exit_on (!is_valid_range (buffer, length, f));
+  exit_on (!ensure_valid_range (buffer, length, f));
 
   /* Read from STDIN if appropriate. */
   if (fd == STDIN_FILENO)
@@ -422,7 +423,7 @@ static void
 sys_write (struct intr_frame *f, int fd, const void *buffer,
   unsigned length)
 {
-  exit_on (!is_valid_range (buffer, length, f));
+  exit_on (!ensure_valid_range (buffer, length, f));
 
   /* Read from STDOUT if appropriate. */
   if (fd == STDOUT_FILENO)
@@ -513,7 +514,9 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
     }
 
   /* Reopen the file for this process. */
+  lock_acquire (&filesys_lock);
   file = file_reopen (file);
+  lock_release (&filesys_lock);
 
   /* Ensure that addr is acceptable. */
   if (addr == NULL || pg_ofs (addr) != 0 || !is_user_vaddr (addr))
@@ -528,11 +531,15 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
            segments (e.g. the stack). */
   /* TODO: Synchronization (what if someone creates a page
            after we've determined it does not exist?). */
+  /* TODO: This might be redundant. */
   num_pages = pg_range_num(length);
   for (i = 0; i < num_pages; i++)
     {
       if (supp_pt_page_exists (&t->supp_pt, addr + i * PGSIZE))
         {
+          lock_acquire (&filesys_lock);
+          file_close (file);
+          lock_release (&filesys_lock);
           f->eax = MAP_FAILED;
           return;
         }
@@ -567,6 +574,9 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
                 supp_pt_page_free (&t->supp_pt, curr_page);
                 i--;
               }
+            lock_acquire (&filesys_lock);
+            file_close (file);
+            lock_release (&filesys_lock);
             f->eax = MAP_FAILED;
             return;
           }
