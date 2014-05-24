@@ -201,6 +201,7 @@ is_valid_ptr (const void *ptr, struct intr_frame *f)
 
   /* Pin pages, and keep them pinned untill done with the system call */
   e->pinned = true;
+
     /* stack growth TODO: Max stack addr */
 
   return page_force_load (e);
@@ -211,14 +212,17 @@ is_valid_ptr (const void *ptr, struct intr_frame *f)
 static bool
 is_valid_range (const void *ptr, size_t len,  struct intr_frame *f)
 {
+  void* curr_page = pg_round_down (ptr);
   size_t i;
-  for (i = 0; i < len; i++)
+  while (curr_page < (uint8_t *)ptr + len)
     {
-      if (!is_valid_ptr ((uint8_t *)ptr + i, f))
+      if (!is_valid_ptr (curr_page, f))
         {
           return false;
         }
+      curr_page = (uint8_t *)curr_page + PGSIZE;
     }
+
   return true;
 }
 
@@ -235,11 +239,15 @@ is_valid_string (const char *str,  struct intr_frame *f)
   while (*str != '\0')
     {
       str++;
-      if (!is_valid_ptr(str, f))
+      if (pg_round_down (str) == str)
         {
-          return false;
+          if (!is_valid_ptr(str, f))
+            {
+              return false;
+            }
         }
     }
+
   return true;
 }
 
@@ -263,13 +271,15 @@ unpin_ptr (const void *ptr)
 static bool
 unpin_range (const void *ptr, size_t len)
 {
-  size_t i;
-  for (i = 0; i < len; i++)
+  void* curr_page = pg_round_down (ptr);
+
+  while (curr_page < (uint8_t *)ptr + len)
     {
-      if (!unpin_ptr ((uint8_t *)ptr + i))
+      if (!unpin_ptr (curr_page))
         {
           return false;
         }
+      curr_page = (uint8_t *)curr_page + PGSIZE;
     }
   return true;
 }
@@ -286,9 +296,12 @@ unpin_string (const char *str)
   while (*str != '\0')
     {
       str++;
-      if (!unpin_ptr(str))
+      if (pg_round_down (str) == str)
         {
-          return false;
+          if (!unpin_ptr(str))
+            {
+              return false;
+            }
         }
     }
   return true;
