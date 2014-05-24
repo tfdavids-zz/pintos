@@ -561,6 +561,12 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
           {
             /* Allocation failed. */
             /* TODO: Clean up the pages we just allocated. */
+            while (i > 0)
+              {
+                curr_page = (void *)((uintptr_t)curr_page - PGSIZE);
+                supp_pt_page_free (&t->supp_pt, curr_page);
+                i--;
+              }
             f->eax = MAP_FAILED;
             return;
           }
