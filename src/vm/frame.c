@@ -247,19 +247,21 @@ void
 frame_free (void *kpage)
 {
   struct list_elem *e;
+  struct frame *f;
   lock_acquire (&ftable_lock);
   for (e = list_begin (&ftable); e != list_end (&ftable);
        e = list_next (e))
     {
-      struct frame *f = list_entry (e, struct frame, elem);
+      f = list_entry (e, struct frame, elem);
       if (f->kpage == kpage)
         {
           list_remove (&f->elem);
-          frame_unalloc (f);
           break;
         }
     }
   lock_release (&ftable_lock);
+
+  frame_unalloc (f);
 }
 
 /* Prune the frame table of all frames allocated
