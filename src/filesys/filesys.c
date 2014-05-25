@@ -27,6 +27,8 @@ filesys_init (bool format)
   if (format) 
     do_format ();
 
+  lock_init (&filesys_lock);
+
   free_map_open ();
 }
 

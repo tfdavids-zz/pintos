@@ -134,17 +134,14 @@ start_process (void *file_name_)
    exception), returns -1.  If TID is invalid or if it was not a
    child of the calling process, or if process_wait() has already
    been successfully called for the given TID, returns -1
-   immediately, without waiting.
-
-   This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
+   immediately, without waiting. */
 int
 process_wait (tid_t child_tid) 
 {
   struct child_state *cs = thread_child_lookup (thread_current (), child_tid);
 
   /* The child state will exist iff process_wait has not been previously called
-     for the given child_tid. */
+     for the given child_tid and the tid is valid. */
   if (!cs)
     {
       return -1;
@@ -157,7 +154,11 @@ process_wait (tid_t child_tid)
   return status;
 }
 
-/* Free the current process's resources. */
+/* Free the current process's resources.
+
+   In particular, destroys its child states, closes all open files, frees all
+   frames, destroys the supplementary page table, and destroys the page table,
+   and informs its parent (if alive) that it has finished exiting.*/
 void
 process_exit (void)
 {
@@ -166,21 +167,6 @@ process_exit (void)
   struct supp_pt *supp_pt;
 
   printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
-
-  /* Inform this process' parent, if it exists, that we are exiting.
-     Interrupts must be disabled to ensure that the parent does not
-     finish executing after we check for its existence but before we
-     attempt to access its fields. */
-  enum intr_level old_level = intr_disable ();
-  struct thread *parent = thread_lookup (thread_current ()->parent_tid);
-  if (parent)
-    {
-      struct child_state *cs = thread_child_lookup (parent,
-        thread_current ()->tid);
-      cs->exit_status = cur->exit_status;
-      sema_up (&cs->sema);
-    }
-  intr_set_level (old_level);
 
   /* Destroy this process' list of children. */
   struct list_elem *e = list_begin (&cur->children);
@@ -207,19 +193,21 @@ process_exit (void)
   file_close (cur->executable);
   lock_release (&filesys_lock);
 
-  /* Free all frames BEFORE destroying the supplementary page table.
+  /* Free all frames before destroying the supplementary page table.
      This is to prevent races in which the eviction algorithm attempts
      to access our supplementary page table while we are in the process of
-     destroying it. */
+     destroying it. A key synchronization idea is that if the frame_evict sees
+     a frame in its table, then that frame's supplementary page table is 
+     intact and its supp_pte is intact as welll.*/
   frame_free_thread (cur);
 
-  /* TODO: Verify that we are freeing all that we should free, and that
-           there are no odd race conditions or anything here. */
+  /* Destroy the supplementary page table. */
   supp_pt = &cur->supp_pt;
   if (supp_pt != NULL)
     {
       supp_pt_destroy (supp_pt);
     }
+ 
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -237,6 +225,21 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  /* Inform this process' parent, if it exists, that we are exiting.
+     Interrupts must be disabled to ensure that the parent does not
+     finish executing after we check for its existence but before we
+     attempt to access its fields. */
+  enum intr_level old_level = intr_disable ();
+  struct thread *parent = thread_lookup (thread_current ()->parent_tid);
+  if (parent)
+    {
+      struct child_state *cs = thread_child_lookup (parent,
+        thread_current ()->tid);
+      cs->exit_status = cur->exit_status;
+      sema_up (&cs->sema);
+    }
+  intr_set_level (old_level);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -465,8 +468,6 @@ load (const char *file_name, void (**eip) (void), void **esp, void *aux)
 
 /* load() helpers. */
 
-static bool install_page (void *upage, void *kpage, bool writable);
-
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
 static bool
@@ -548,15 +549,15 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      /* Get a page of memory. */
+      /* Create a supplementary page table entry; note that if allocation of a
+         supp_pte fails at any point, the resources allocated in previous
+         iterations will be freed upon process exit. */
       if (page_read_bytes == 0)
         {
           if (!supp_pt_page_calloc (&t->supp_pt, upage, writable))
             {
-              /* TODO: For each of these error conditions: Do we need
-                 to free the memory we previously allocated here? */
               return false;
-          }
+            }
         }
       else 
         {
@@ -641,30 +642,10 @@ setup_stack (void **esp, const char *aux)
   void *upage = (void *) (PHYS_BASE - PGSIZE);
 
   if (supp_pt_page_calloc (&t->supp_pt, upage, true) &&
-    page_handle_fault (&t->supp_pt, upage))
+    supp_pt_force_load (supp_pt_lookup (&t->supp_pt, upage)))
     {
       *esp = PHYS_BASE;
       success = setup_args(esp, aux);
     }
   return success;
-}
-
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
-static bool
-install_page (void *upage, void *kpage, bool writable)
-{
-  struct thread *t = thread_current ();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }

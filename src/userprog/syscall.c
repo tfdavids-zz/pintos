@@ -39,9 +39,10 @@ static void sys_close (int fd);
 static void sys_mmap (struct intr_frame *f, int fd, void *addr);
 static void sys_munmap (mapid_t mapping);
 
-static bool is_valid_ptr (const void *ptr, struct intr_frame *f);
-static bool is_valid_range (const void *ptr, size_t len, struct intr_frame *f);
-static bool is_valid_string (const char *ptr, struct intr_frame *f);
+static bool ensure_valid_ptr (const void *ptr, struct intr_frame *f);
+static bool ensure_valid_range (const void *ptr, size_t len,
+                                struct intr_frame *f);
+static bool ensure_valid_string (const char *ptr, struct intr_frame *f);
 static bool unpin_ptr (const void *ptr);
 static bool unpin_range (const void *ptr, size_t len);
 static bool unpin_string (const char *ptr);
@@ -89,7 +90,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   void *intr_esp = f->esp;
 
   /* Extract the system call number and the arguments, if any. */
-  exit_on (!is_valid_range (intr_esp, sizeof (uint32_t), f));
+  exit_on (!ensure_valid_range (intr_esp, sizeof (uint32_t), f));
   uint32_t syscall_num = *((uint32_t *)intr_esp);
   uint8_t arg_num = syscall_arg_num[syscall_num];
 
@@ -97,7 +98,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   for (i = 0; i < arg_num; i++)
     {
       intr_esp = (uint32_t *)intr_esp + 1;
-      exit_on (!is_valid_range (intr_esp, sizeof (uint32_t), f));
+      exit_on (!ensure_valid_range (intr_esp, sizeof (uint32_t), f));
       args[i] = *((uint32_t *)intr_esp);
     }
 
@@ -167,82 +168,86 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 }
 
-/* Returns true iff the suplied pointer points to a valid mapped
-   user address. */
+/* Ensures that the suplied pointer points to a valid mapped
+   user address. If the user address exists in the supplementary
+   page table but is not resident in memory, then brings the page
+   into memory.
+
+   NB: Pins ptr's page to ensure that it is not
+       swapped out during the system call invoking this function.
+ */
 static bool
-is_valid_ptr (const void *ptr, struct intr_frame *f)
+ensure_valid_ptr (const void *ptr, struct intr_frame *f)
 {
-  /* TODO: supp_pte can exist but it's possible that ptr is not mapped.
-     this could cause a page fault when ptr is later accessed. */
-  struct supp_pte *e;
+  struct supp_pte *supp_pte;
 
   if ((ptr == NULL) || !is_user_vaddr (ptr))
     {
       return false;
     }
-  if (ptr >= f->esp - 32 && ptr > STACK_LIMIT)
-    {
-      if (supp_pt_lookup (&thread_current ()->supp_pt,
-                          pg_round_down (ptr)) == NULL)
-        {
-          if (!supp_pt_page_calloc (&thread_current ()->supp_pt,
-                                   pg_round_down (ptr), true))
-            {
-              thread_current ()->exit_status = -1;
-              thread_exit ();
-            }
-        }
-    }
 
-  if ((e = supp_pt_lookup (&thread_current ()->supp_pt, ptr)) == NULL)
+  /* If an attempt to grow the stack failed, then either the system
+     is running out of memory or the stack address was invalid. */
+  if (!supp_pt_grow_stack_if_necessary (&thread_current ()->supp_pt,
+    f->esp, pg_round_down (ptr)))
     {
       return false;
     }
 
-  /* Pin pages, and keep them pinned untill done with the system call */
-  e->pinned = true;
+  /* The user should not provide the system with memory that she does not
+     own. */
+  supp_pte = supp_pt_lookup (&thread_current ()->supp_pt, ptr);
+  if (supp_pte == NULL)
+    {
+      return false;
+    }
 
-    /* stack growth TODO: Max stack addr */
-
-  return page_force_load (e);
+  /* Pin pages, and keep them pinned until done with the system call. */
+  supp_pte->pinned = true;
+  return supp_pt_force_load (supp_pte);
 }
 
-/* Returns true iff every address within the range
-   is a valid mapped user address. */
+/* Returns true iff every page within the range is valid, as
+   per ensure_valid_ptr. */
 static bool
-is_valid_range (const void *ptr, size_t len,  struct intr_frame *f)
+ensure_valid_range (const void *ptr, size_t len,  struct intr_frame *f)
 {
   void* curr_page = pg_round_down (ptr);
-  size_t i;
-  while (curr_page < (uint8_t *)ptr + len)
+  size_t pos = 0;
+  while (curr_page < (void *)((uint8_t *)ptr + len))
     {
-      if (!is_valid_ptr (curr_page, f))
+      /* Unpin pinned pages on failure. */
+      if (!ensure_valid_ptr (curr_page, f))
         {
+          ASSERT (unpin_range (ptr, pos));
           return false;
         }
-      curr_page = (uint8_t *)curr_page + PGSIZE;
+      curr_page = (void *)((uint8_t *)curr_page + PGSIZE);
+      pos++;
     }
 
   return true;
 }
 
-/* Returns true iff the supplied string spans
-   valid mapped user memory. */
+/* Returns true iff every page within the string is valid, as
+   per ensure_valid_ptr. */
 static bool
-is_valid_string (const char *str,  struct intr_frame *f)
+ensure_valid_string (const char *str,  struct intr_frame *f)
 {
-  if (!is_valid_ptr (str, f))
+  if (!ensure_valid_ptr (str, f))
     {
       return false;
     }
 
+  const char *start = str;
   while (*str != '\0')
     {
       str++;
       if (pg_round_down (str) == str)
         {
-          if (!is_valid_ptr(str, f))
+          if (!ensure_valid_ptr(str, f))
             {
+              ASSERT (unpin_range (start, (size_t) (str - start)));
               return false;
             }
         }
@@ -251,40 +256,45 @@ is_valid_string (const char *str,  struct intr_frame *f)
   return true;
 }
 
-/* Finds frame for given ptr and unpins it */
+/* Finds the frame for given ptr and unpins it. Returns true
+   if and only if the unpinning was successful. */
 static bool
 unpin_ptr (const void *ptr)
 {
-  struct supp_pte *e;
+  struct supp_pte *supp_pte;
 
-  if ((e = supp_pt_lookup (&thread_current ()->supp_pt, ptr)) == NULL)
+  if ((supp_pte = supp_pt_lookup (&thread_current ()->supp_pt, ptr)) == NULL)
     {
       return false;
     }
 
   /* Pin pages, and keep them pinned untill done with the system call */
-  e->pinned = false;
+  supp_pte->pinned = false;
   return true;
 }
 
-/* Unpins all ptrs in given range. */
+/* Unpins all pages in the given range. */
 static bool
 unpin_range (const void *ptr, size_t len)
 {
-  void* curr_page = pg_round_down (ptr);
+  if (len == 0)
+    {
+      return true;
+    }
 
-  while (curr_page < (uint8_t *)ptr + len)
+  void* curr_page = pg_round_down (ptr);
+  while (curr_page < (void *)((uint8_t *)ptr + len))
     {
       if (!unpin_ptr (curr_page))
         {
           return false;
         }
-      curr_page = (uint8_t *)curr_page + PGSIZE;
+      curr_page = (void *)((uint8_t *)curr_page + PGSIZE);
     }
   return true;
 }
 
-/* Unpins all ptrs in given string. */
+/* Unpins all pages in a given string. */
 static bool
 unpin_string (const char *str)
 {
@@ -323,7 +333,7 @@ sys_exit (int status)
 static void
 sys_exec (struct intr_frame *f, const char *file)
 {
-  exit_on (!is_valid_string(file, f));
+  exit_on (!ensure_valid_string(file, f));
   f->eax = process_execute (file);
   unpin_string (file);
 }
@@ -338,7 +348,7 @@ static void
 sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size)
 {
-  exit_on (!is_valid_string (file, f));
+  exit_on (!ensure_valid_string (file, f));
   lock_acquire (&filesys_lock);
   f->eax = filesys_create (file, initial_size);
   lock_release (&filesys_lock);
@@ -348,7 +358,7 @@ sys_create (struct intr_frame *f, const char *file,
 static void
 sys_remove (struct intr_frame *f, const char *file)
 {
-  exit_on (!is_valid_string (file, f));
+  exit_on (!ensure_valid_string (file, f));
   lock_acquire (&filesys_lock);
   f->eax = filesys_remove (file);
   lock_release (&filesys_lock);
@@ -358,7 +368,7 @@ sys_remove (struct intr_frame *f, const char *file)
 static void
 sys_open (struct intr_frame *f, const char *file)
 {
-  exit_on (!is_valid_string (file, f));
+  exit_on (!ensure_valid_string (file, f));
   lock_acquire (&filesys_lock);
   f->eax = fd_table_open (file);
   lock_release (&filesys_lock);
@@ -380,7 +390,7 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
   unsigned length)
 {
   exit_on (fd == STDOUT_FILENO);
-  exit_on (!is_valid_range (buffer, length, f));
+  exit_on (!ensure_valid_range (buffer, length, f));
 
   /* Read from STDIN if appropriate. */
   if (fd == STDIN_FILENO)
@@ -400,7 +410,11 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
       size_t read_bytes = 0;
       lock_acquire (&filesys_lock);
       struct file *file = fd_table_get_file (fd);
-      exit_on_file (file == NULL);
+      if (file == NULL)
+        {
+          unpin_range (buffer, length);
+          exit_on_file (true); 
+        }
       while (read_bytes < length)
         {
           tmp = file_read (file, (uint8_t *)buffer + read_bytes,
@@ -414,6 +428,7 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
       lock_release (&filesys_lock);
       f->eax = read_bytes;
     }
+
   unpin_range (buffer, length);
 }
 
@@ -422,7 +437,7 @@ static void
 sys_write (struct intr_frame *f, int fd, const void *buffer,
   unsigned length)
 {
-  exit_on (!is_valid_range (buffer, length, f));
+  exit_on (!ensure_valid_range (buffer, length, f));
 
   /* Read from STDOUT if appropriate. */
   if (fd == STDOUT_FILENO)
@@ -438,7 +453,11 @@ sys_write (struct intr_frame *f, int fd, const void *buffer,
       size_t written_bytes = 0;
       lock_acquire (&filesys_lock);
       struct file *file = fd_table_get_file (fd);
-      exit_on_file (file == NULL);
+      if (file == NULL)
+        {
+          unpin_range (buffer, length);
+          exit_on_file (true);
+        }
       while (written_bytes < length)
         {
           tmp = file_write (file, (uint8_t *)buffer + written_bytes,
@@ -498,8 +517,7 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
   struct file *file = fd_table_get_file (fd);
   if (file == NULL)
     {
-      f->eax = MAP_FAILED;
-      return;
+      goto error;
     }
 
   /* Ensure that the file length is positive. */
@@ -508,70 +526,71 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
   lock_release (&filesys_lock);
   if (length <= 0)
     {
-      f->eax = MAP_FAILED;
-      return;
+      goto error;
     }
 
-  /* Reopen the file for this process. */
-  file = file_reopen (file);
-
-  /* Ensure that addr is acceptable. */
+  /* Ensure that addr is valid. */
   if (addr == NULL || pg_ofs (addr) != 0 || !is_user_vaddr (addr))
     {
-      f->eax = MAP_FAILED;
-      return; 
+      goto error;
     }
 
-  /* Ensure that there is enough space for the addr. */
-  /* Calculate each page and make sure that none is mapped. */
-  /* TODO: Ensure that the pages do not overlap with other
-           segments (e.g. the stack). */
-  /* TODO: Synchronization (what if someone creates a page
-           after we've determined it does not exist?). */
+  /* Do not allow memory mappings to creep into the stack. */
   num_pages = pg_range_num(length);
-  for (i = 0; i < num_pages; i++)
+  if ((uintptr_t)addr + num_pages * PGSIZE > STACK_LIMIT)
     {
-      if (supp_pt_page_exists (&t->supp_pt, addr + i * PGSIZE))
-        {
-          f->eax = MAP_FAILED;
-          return;
-        }
+      goto error;
     }
 
-    /* Error checking passes. We can mmap it. */
-    /* TODO: This is a hack, but a very convenient one:
-       Simply choose mapid equal to (mapid_t) addr.
-       Assumes that the size of mapid_t matches the size
-       of pointers. */
-    /* TODO: File permissions? They will be exercised
-             when the memory is unmapped and written back
-             to the file, but it would be nice to preemptively
-             set page permissions here. */
+    /* Reopen the file for this process. */
+    lock_acquire (&filesys_lock);
+    file = file_reopen (file);
+    lock_release (&filesys_lock);
+    if (file == NULL)
+      {
+        goto error;
+      }
+
+    /* Attempt to map the file into memory. Since no two mappings within
+       the same process can share user virtual addresses, the starting
+       address of the mapping works well as its unique identifier. */
     mapid = (mapid_t) addr;
     curr_page = addr;
     for (i = 0; i < num_pages; i++)
       {
         bytes = length > PGSIZE ? PGSIZE : length;
 
-        /* TODO: Debugging. */
-        ASSERT (bytes > 0);
-
+        /* If one of the pages required by this mapping are in
+           use, then we cannot service the user process' request. */
         if (!supp_pt_page_alloc_file (&t->supp_pt, curr_page,
           file, i * PGSIZE, bytes, mapid, true))
           {
-            /* Allocation failed. */
-            /* TODO: Clean up the pages we just allocated. */
-            f->eax = MAP_FAILED;
-            return;
+            /* Clean up the allocated supp_pte entries, if any;
+               note that since mappings are lazy loaded, there are
+               no frames to free. */
+            while (i > 0)
+              {
+                curr_page = (void *)((uintptr_t)curr_page - PGSIZE);
+                supp_pt_page_free (&t->supp_pt, curr_page);
+                i--;
+              }
+            lock_acquire (&filesys_lock);
+            file_close (file);
+            lock_release (&filesys_lock);
+            goto error;
           }
 
         length -= bytes;
         curr_page = (void *)((uintptr_t)curr_page + PGSIZE);
       }
 
-    /* TODO: Debugging. */
-   // ASSERT (bytes == 0);
+ success:
     f->eax = mapid;
+    return;
+
+ error:
+  f->eax = MAP_FAILED;
+  return;
 }
 
 static void

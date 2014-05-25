@@ -67,6 +67,15 @@ is_user_vaddr (const void *vaddr)
   return vaddr < PHYS_BASE;
 }
 
+/* Returns true if (and only if) VADDR is a user virtual address
+   that appears to be within the stack. */
+static inline bool
+is_user_stack_vaddr (const void *vaddr, const void *esp)
+{
+  return is_user_vaddr (vaddr) &&
+    (vaddr >= esp - 32) && (vaddr > STACK_LIMIT);
+}
+
 /* Returns true if VADDR is a kernel virtual address. */
 static inline bool
 is_kernel_vaddr (const void *vaddr) 

@@ -111,17 +111,24 @@ kill (struct intr_frame *f)
     }
 }
 
-/* Page fault handler.  This is a skeleton that must be filled in
-   to implement virtual memory.  Some solutions to project 2 may
-   also require modifying this code.
+/* Page fault handler.
 
-   At entry, the address that faulted is in CR2 (Control Register
+   If the user process page faulted in an illegal manner --
+   that is, if it faulted upon an invalid address or attempted
+   to access memory to which it does not have permissions, or if
+   the system is out of memory  -- then the process is terminated.
+
+   Otherwise, the handler retrieves the frame for the faulting page
+   and loads its data into memory, updating the frame table and the
+   process' supplementary page table and page directory.
+
+   (At entry, the address that faulted is in CR2 (Control Register
    2) and information about the fault, formatted as described in
-   the PF_* macros in exception.h, is in F's error_code member.  The
-   example code here shows how to parse that information.  You
-   can find more information about both of these in the
+   the PF_* macros in exception.h, is in F's error_code member.
+
+   More information about page faults can be found in the
    description of "Interrupt 14--Page Fault Exception (#PF)" in
-   [IA32-v3a] section 5.15 "Exception and Interrupt Reference". */
+   [IA32-v3a] section 5.15 "Exception and Interrupt Reference".) */
 static void
 page_fault (struct intr_frame *f)
 {
@@ -153,42 +160,33 @@ page_fault (struct intr_frame *f)
   user = (f->error_code & PF_U) != 0;
 
   /* Terminate the user process if it attempts to write to a read-only
-     page, or if it faulted on a kernel address.*/
+     page, or if it faulted on a kernel address or NULL.*/
   if (!not_present || is_kernel_vaddr (fault_addr) || fault_addr == NULL)
     {
       thread_current ()->exit_status = -1;
       thread_exit ();
     }
 
-  /* stack growth TODO: Max stack addr */
-  if (fault_addr > STACK_LIMIT && fault_addr >= f->esp - 32)
+  /* If an attempt to grow the stack failed, then either the system
+     is running out of memory or the stack address was invalid;
+     in either case, terminate the user thread. */
+  if (!supp_pt_grow_stack_if_necessary (&thread_current ()->supp_pt,
+    f->esp, fault_addr))
     {
-      if (supp_pt_lookup (&thread_current ()->supp_pt,
-                          pg_round_down (fault_addr)) == NULL){
-        success = supp_pt_page_calloc (&thread_current ()->supp_pt,
-                                       pg_round_down (fault_addr), true);
-        if (!success)
-          {
-            thread_current ()->exit_status = -1;
-            thread_exit ();
-          }
-      }
+      thread_current ()->exit_status = -1;
+      thread_exit ();
     }
 
-  /* Otherwise, handle the page fault by loading the page into memory. */
+  /* Handle the page fault by loading the page into memory. */
   void *upage = pg_round_down (fault_addr);
-  success = page_handle_fault (&thread_current ()->supp_pt, upage);
-  if (success) {
-    return;
-  }
+  success = supp_pt_handle_fault (&thread_current ()->supp_pt, upage);
+  if (success)
+    {
+      return;
+    }
 
-  /* Else we have a really bad page fault, so panic */
+  /* If we could not service the fault, then we may be out of kernel memory.
+     Terminate the user process as a defensive measure. */
   thread_current ()->exit_status = -1;
-  printf ("Page fault at %p: %s error %s page in %s context.\n",
-          fault_addr,
-          not_present ? "not present" : "rights violation",
-          write ? "writing" : "reading",
-          user ? "user" : "kernel");
-  kill (f);
+  thread_exit ();
 }
-
