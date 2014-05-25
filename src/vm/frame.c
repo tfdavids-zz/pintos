@@ -143,7 +143,10 @@ frame_evict (void)
 
   /* Acquire supp_pte lock. */
   lock_acquire (&pte->l);
-  pte->swap_slot_index = swap_slot_index;
+  if (pte->loc == SWAP)
+    {
+      pte->swap_slot_index = swap_slot_index;
+    }
   pte->being_evicted = false;
   cond_signal (&pte->done_evicting, &pte->l);
   lock_release (&pte->l);
@@ -160,6 +163,7 @@ frame_evict (void)
 #ifndef NDEBUG
   memset (frame->kpage, 0xcc, PGSIZE);
 #endif
+
   return frame;
 }
 
