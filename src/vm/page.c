@@ -210,7 +210,7 @@ supp_pt_grow_stack_if_necessary (struct supp_pt *supp_pt,
    return the corresponding supplementary page table entry if
    it exists, NULL otherwise. */
 struct supp_pte *
-supp_pt_lookup (struct supp_pt *supp_pt, void *addr)
+supp_pt_lookup (struct supp_pt *supp_pt, const void *addr)
 {
   void *upage = pg_round_down (addr);
   

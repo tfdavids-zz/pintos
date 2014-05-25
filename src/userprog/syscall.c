@@ -537,7 +537,7 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
 
   /* Do not allow memory mappings to creep into the stack. */
   num_pages = pg_range_num(length);
-  if ((uintptr_t)addr + num_pages * PGSIZE > STACK_LIMIT)
+  if ((uintptr_t)addr + num_pages * PGSIZE > (uintptr_t)STACK_LIMIT)
     {
       goto error;
     }
@@ -584,9 +584,8 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
         curr_page = (void *)((uintptr_t)curr_page + PGSIZE);
       }
 
- success:
-    f->eax = mapid;
-    return;
+  f->eax = mapid;
+  return;
 
  error:
   f->eax = MAP_FAILED;

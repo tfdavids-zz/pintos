@@ -87,7 +87,7 @@ bool supp_pt_grow_stack_if_necessary (struct supp_pt *supp_pt,
   void *esp, void *addr);
 
 /* Auxiliary functions. */
-struct supp_pte *supp_pt_lookup (struct supp_pt *supp_pt, void *addr);
+struct supp_pte *supp_pt_lookup (struct supp_pt *supp_pt, const void *addr);
 bool supp_pt_is_valid_mapping (mapid_t mapping);
 void supp_pt_write_if_mapping (struct supp_pte *supp_pte);
 

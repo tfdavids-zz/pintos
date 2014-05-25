@@ -8,6 +8,6 @@ elif [ "$1" != "" ]; then
     make tests/vm/$1.result VERBOSE=1
 else
     make clean
-    make check -j64
+    make check
 fi
 cd ../../..
