@@ -119,17 +119,17 @@ steps to locate the frame that contains it's data
    where the date of the given page resides(SWAP or DISK) and reads it
    into the allocated frame
 
- - It than adds the mapping from user virtual address to kernel virtual
+ - Add the mapping from user virtual address to kernel virtual
    address of the page by calling pagedir_set_page
 
 >> A3: How does your code coordinate accessed and dirty bits between
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
 
-We avoid this issue by having kernel always using the user virtual address
+We avoid this issue by having kernel always use the user virtual address
 when accessing user memory. This happens in system calls where we first
 validate that all that addresses passed in by the user are valid user
-memory (<PHYS_BASE) but than use the same addresses to access the
+memory ( < PHYS_BASE) but than use the same addresses to access the
 user data.
 
 
@@ -219,9 +219,9 @@ size_t num_swap_slots;
 >> B2: When a frame is required but none is free, some frame must be
 >> evicted.  Describe your code for choosing a frame to evict.
 
-We implemented second chance algorithm for choosing which frame to evict.
-Since our frame table is a list instead of keeping an arrow we just
-rotate elements in the list so that we always start checking at the
+We implemented the second chance algorithm for choosing which frame to
+evict. Since hour frame table is a list instead of keeping an arrow we
+just rotate elements in the list so that we always start checking at the
 first entry of the list
  
       if entry was accessed
@@ -256,12 +256,12 @@ page back.
 When a page fault occurs on a page that doesn't have a supplementary page
 table entry we check to see if this is caused by the stack growing. We
 add a supplementary page table entry if the address is above esp - 32
-(because PUSHA could access memory that's 32 below esp) and we also check
-if it is above STACK_LIMIT, if not we consider this an invalid memory
-access and exit the process.
+(because PUSHA could access memory that's 32 bytes below esp) and we also
+check if it is above STACK_LIMIT, if not we consider this an invalid memory
+access and exit the process. Otherwise we grow the stack by adding a new
+entry to the supplementary page table and loading a page full of zeros.
 
 STACK_LIMIT is picked to be 8MB below PHYS_BASE.
-
 
 
 ---- SYNCHRONIZATION ----
@@ -271,28 +271,31 @@ STACK_LIMIT is picked to be 8MB below PHYS_BASE.
 >> textbook for an explanation of the necessary conditions for
 >> deadlock.)
 
+
 Access to swap is synchronized by a single global lock that synchronizes
 access to swap_slots so that two users never get the same swap_index.
 Read and Writes into swap_device are synchronized internally.
 
 We use an individual lock to synchronize access to every entry in the
-supplementary page table. Entries are modified by the process they belong
-to when it page_faults and also the process that evicts a frame owned by
-that process. Using individual locks enables a process to page_fault on a
-different page without blocking while one of it's other pages is being
-evicted.
+supplementary page table. An entry belonging to some process P can only be
+accessed by P when it page_faults or some other process that is trying ot
+evict a frame that belongs to P. Using individual locks enables a process
+to page_fault on a different page without blocking while one of it's other
+pages is being evicted.
 
 We also have a lock for the whole supplementary page table, this is used
 to prevent a race condition where a process Q is in the middle of evicting
-process P's frame when P exits and deletes it's supp_tb, so when Q is done
-with eviction and wants to update the P's supp_tb it is gone ! We prevent
-this from happening by blocking the exit process while num_updating > 0.
+process P's frame when P exits and deletes its supp_tb, so when Q is done
+with eviction and wants to update the P's supp_pt it is gone ! We prevent
+this from happening by blocking the exiting process while num_updating > 0.
 Num_updating of a process is the number of other processes that are
 currently in the middle of evicting one of it's frames.
 
 
-We have the first three conditions for deadlock but prevent the fourth one:
+Preventing Deadlock:
 
+We have the first three conditions for deadlock but prevent the fourth
+one.
 
 1. Mutual exclusion - we have this because we use locks
 
