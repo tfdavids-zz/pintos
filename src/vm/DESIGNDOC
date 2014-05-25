@@ -243,7 +243,7 @@ first entry of the list
 
 Process Q can be accessed via a pointer in every frame it owns so when P
 obtains Q's frame, we first set the present bit to false in the pagedir
-of Q and then modify the entry in the supplamantry page table to specify
+of Q and then modify the entry in the supplementary page table to specify
 where the content of that page resides(DISK or SWAP).
 So when process Q tries to access that page it will pagefault(pagedir is
 set to not present) and check the supplementary page table for loading the
