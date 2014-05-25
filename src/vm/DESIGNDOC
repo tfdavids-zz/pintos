@@ -30,66 +30,76 @@ Robert Gasparyan <robertga@stanford.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-/* Each process has a supp_pt, a hash function that maps the user memory 
-   address that a user thinks he has (or may have) to a supp_pte which
-   specifies where the page can be found */
-
-struct supp_pt
-  {
-    struct hash h;
-    struct lock lock; /* Synchronizes access to supp_pt */
-    size_t num_updating; /* Num of other processes updating the supp_pt */
-    struct condition done_updating; /* Indicates that a process is done 
-                                        updating supp_pt */             
-  };
-
-struct supp_pte
-  {
-    void *upage; /* User memory address of the page */
-    bool writable; /* True means User has write access to page */
-
-    enum data_loc loc; /* Where the page is stored */
-
-    size_t swap_slot_index; /* S */
-
-    // and for pages on disk, we need this
-    struct file *file; /* The file backing this page. */
-    off_t start;  /* The offset in the file at which the data begin. */
-    size_t bytes; /* The number of bytes to copy from the file. */
-    mapid_t mapping; /* Negative if this page was not mmaped; otherwise,
-                        the id of the mapping. */
-    bool pinned;
-    bool being_evicted;
-    struct condition done_evicting;
-    struct lock l;
-    struct hash_elem hash_elem;
-  };
-
+** page.h **
+/* Locations that a given page may reside in. */
 enum data_loc
   {
-    DISK,
-    ZEROES,
-    SWAP,
+    MEMORY, /* In memory. */
+    DISK,   /* In a file. */
+    SWAP,   /* In swap. */
+    ZEROES, /* Unitialized data (e.g. BSS) */
+  };
+
+/* Each process has a supplementary page table containing auxiliary information
+   about its pages, useful for eviction and fetching pages' data. */
+struct supp_pt
+  {
+    struct hash h;                  /* The hash table. */
+    struct lock lock;               /* For synchronizing access to the table. */
+    size_t num_updating;            /* The number of threads currently updating
+                                       entries within the table. */
+    struct condition done_updating; /* The table can only be destroyed when
+                                       no threads are updating its entries. */
   };
 
 
+/* Each entry within the supplementary page table is a struct supp_pte.
+   Entries are keyed by the user page and describe where the page's data is. */
+struct supp_pte
+  {
+    void *upage;            /* The user virtual address, rounded down to
+                               the nearest page. */
+    bool writable;          /* True if and only if the user has write access to
+                               the page. */
+    enum data_loc loc;      /* Where the page resides in our system. */
+    size_t swap_slot_index; /* If loc == SWAP, the index into the swap table
+                               that corresponds to where this upage's data is
+                               stored on swap. */
+    struct file *file;      /* The file from which the data was loaded, if any.
+                             */
+    off_t start;            /* The offset in the file at which the data begin.
+                             */
+    size_t bytes;           /* The number of bytes in the file spanned by the
+                               data. */
+    mapid_t mapping;        /* Negative if this page was not mmaped; otherwise,
+                               the ID of the mapping. IDs are unique per
+                               per process. */
+    bool pinned;            /* True if the frame corresponding to
+                               this entry should not be evicted. */
+    bool being_evicted;     /* True if and only if the corresponding frame is
+                               being evicted. */
+    struct condition done_evicting; /* To syncrhonize with eviction. */
+    struct lock l;                  /* To synchronize with eviction. */
+    struct hash_elem hash_elem; /* To hook the entry into the supp_pte. */
+  };
 
-/* Holds all user virtual addresses that are currently in memory */
+** frame.c **
+/* List of all frames currently in the system; used for eviction. */
 static struct list ftable;
-/* Synchronizes access to the ftable */
+
+/* To synchronize access to the ftable */
 static struct lock ftable_lock;
 
-/* Each frame table entry contains 
-   upage - user virtual address of the page in memory
-   kpage - corresponding kernel virtual address
-   t - pointer to process(thread) that owns this page
-*/
+/* A struct frame represents a (upage, kpage, thread); thread's
+   page table contains a mapping between upage and kpage and is alive. */
 struct frame
   {
-    void *kpage;
-    void *upage;
-    struct list_elem elem; // list_elem for frame table
-    struct thread *t;
+    void *kpage;           /* A kernel virtual page. */
+    void *upage;           /* The user virtual page aliased to kpage. */
+    struct list_elem elem; /* The list_elem to hook the frame into the
+                              frame table. */
+    struct thread *t;      /* The thread to which the (upage, kpage) pair
+                              belongs. */
   };
 
 ---- ALGORITHMS ----
@@ -140,8 +150,42 @@ the global ftable_lock, and palloc_get_page has internal synchronization.
 >> A5: Why did you choose the data structure(s) that you did for
 >> representing virtual-to-physical mappings?
 
+Supplementary page table:
+  We chose to back the supplementary page table with a hash table primarily
+because we reasoned that our code would have to look-up many supplementary
+page table entries, and we knew that a hash table would provide a
+(theoretically) constant time lookup. In particular, we need to look-up
+supplementary page table entries when we validate user pointers, handle
+page faults, examine frames in second chance, free mapped user pages,
+and so on.
 
+An alternative to a hash table might have been a list, which would have
+supported faster insertion and deletion (so allocation and freeing could
+have been faster). However, we reasoned that insertions and deletions are
+likely much less frequent than lookups, and the O(n) lookups that a list
+would incur would slow our system down tremendously.
 
+An array would have been intractable because we would have needed an entry
+for every virtual address.
+
+Frame table:
+  We choose to back the frame table with a list because we reasoned that
+the vast majority of accesses would be sequential, not random. That is, the
+primary use case for the table is eviction, and the second chance algorithm
+simply iterates through the list, popping the head and pushing it to the back.
+Since we have to iterate through the list for eviction, we could do no better
+than O(n). Additionally, using a list makes insertions and deletions into the
+table constant time (i.e. frame frees and frame unallocs become faster).
+
+  We did consider using a hash table for the frame table, instead of a list.
+A hash table would be beneficial because look-ups would be faster -- when
+unmapping a file or freeing a thread's frames, we could quickly find its frames.
+However, deletion and insertion into the table would be more costly. The number
+deletions from the table is roughly equal to the number of look-ups we do. Thus,
+we reasoned that a list might perform on par (or better with) a table, and would
+avoid the latter's memory overhead, to boot.
+
+As before, an array would have been intractable.
 
 		       PAGING TO AND FROM DISK
 		       =======================
@@ -152,19 +196,22 @@ the global ftable_lock, and palloc_get_page has internal synchronization.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-/* Swapdevice provides internally synchronized interface with
+/* Swap device provides internally synchronized interface with
    swap partition of the disk */
 static struct block *swap_device;
 
-/* Is a bitmap, where very bit corresponds to a slot in a swap
+/* A bitmap, where every bit corresponds to a slot in a swap
    partition, if bit i is on => page at index i is free in swap */
 static struct bitmap *swap_slots;
+
 /* Synchronizes access to the ftable */
 static struct lock swap_slots_lock;
-/* Block interface writes one sector at a time
-   sector_per_page is the number of sectors in a page */
+
+/* Block interface writes one sector at a time;
+   sector_per_page is the number of sectors in a page. */
 static size_t sectors_per_page = PGSIZE / BLOCK_SECTOR_SeIZE;
-/* Num of pages that can fit in swap */
+
+/* Number of pages that can fit in swap. */
 size_t num_swap_slots;
 
 ---- ALGORITHMS ----
@@ -173,7 +220,7 @@ size_t num_swap_slots;
 >> evicted.  Describe your code for choosing a frame to evict.
 
 We implemented second chance algorithm for choosing which frame to evict.
-Since hour frame table is a list instead of keeping an arrow we just
+Since our frame table is a list instead of keeping an arrow we just
 rotate elements in the list so that we always start checking at the
 first entry of the list
  
@@ -338,8 +385,56 @@ too much.
 >> memory subsystem.  Explain how the page fault and eviction
 >> processes differ between swap pages and other pages.
 
+Our system needed to keep track of each process' memory mapped files.
+In particular, we needed to keep track of 1) which pages were mapped,
+2) from which files and 3) from what location in those files were those
+pages mapped, and 4) which pages belonged to what mappings.
+
+We decided to fold this tracking information into the supplementary
+page table entry -- the entry already needed to keep track of the
+file (if any) a page was sourced from and the offset into that file,
+along with the number of bytes read from that file ( 2) and 3) above).
+By simply adding a mapid_t to each supp_pte, our system is able to track
+1) and 4) as well -- if the ID is negative, then the page is not mapped;
+otherwise, it is mapped if its ID appears to be valid.
+
+In particular, a file memory mapped at user virtual address "vaddr" receives
+a mapid_t equal to (mapid_t) vaddr. Since no two mappings within the same
+virtual address space can span overlapping user virtual addresses, the starting
+address of the mapping uniquely identifies it. Moreover, since a process
+already knows the address of its memory mapped file, we are not revealing
+any sensitive information by choosing this naming policy.
+
+Memory mapped files are lazy-loaded -- when mmap-d, we create the necessary
+supplementary page table entries but do not fetch the actual data until
+we fault upon their corresponding pages.
+
+The page fault and eviction policies differ slightly between swap pages
+and other pages. The basic page fault mechanism is the same for both --
+if the faulted address was legal, then load the page's frame and data
+and update its supplementary page table and page table. When evicting
+frames, if a page is read-only, then we do not store it in swap -- rather,
+we remember to simply fetch it from the file from which we read it in
+when we next fault on the page. If a page is a part of a memory mapped file,
+we also use its file as its backing store -- only if the page is dirty
+do we write its data back to the file. Regardless of whether it is dirty,
+we remember to fetch it from its file. Finally, if a page does not fit
+either of those categories, then we store it in swap and remember where we
+stored it so we can retrieve it when we fault upon it.
+
+Upon exiting, we write the contents of memory mapped pages if they are dirty.
+
 >> C3: Explain how you determine whether a new file mapping overlaps
 >> any existing segment.
+
+For each file that we are asked to map, we first compute the number of
+pages we will need in order to map the entire file. If the address
+plus the number of pages times the page size extends into the stack region
+(demarcated by STACK_LIMIT in vaddr.h), then we do not map the file. Next,
+for each page that the memory mapped file would need, we check whether there
+already exists an entry for that page in our supplementary page table. If so,
+then the new file mapping would overlap an existing segment, and we do not
+create the mapping.
 
 ---- RATIONALE ----
 
@@ -349,6 +444,18 @@ too much.
 >> that much of their implementation can be shared.  Explain why your
 >> implementation either does or does not share much of the code for
 >> the two situations.
+
+Our implementation shares much of the code in the two situations. Indeed,
+both types of data are tracked using the same structures (struct frame's
+and struct supp_pte's). The code for eviction and fetching for both types
+of data is almost identical -- we simply check whether we should write
+data back to a file or to swap. Mappings have a bit of extra code upon
+process exit, since they must be written back to the file if they are dirty.
+But, again, the code is shared.
+
+We decided to share the code in order to minimize code duplication and to
+promote clarity -- the code would become confusing if we different code
+for two very similar situations.
 
 			   SURVEY QUESTIONS
 			   ================

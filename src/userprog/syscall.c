@@ -542,47 +542,53 @@ sys_mmap (struct intr_frame *f, int fd, void *addr)
       goto error;
     }
 
-    /* Reopen the file for this process. */
-    lock_acquire (&filesys_lock);
-    file = file_reopen (file);
-    lock_release (&filesys_lock);
-    if (file == NULL)
-      {
-        goto error;
-      }
+  /* Reopen the file for this process. */
+  lock_acquire (&filesys_lock);
+  file = file_reopen (file);
+  lock_release (&filesys_lock);
+  if (file == NULL)
+    {
+      goto error;
+    }
 
-    /* Attempt to map the file into memory. Since no two mappings within
-       the same process can share user virtual addresses, the starting
-       address of the mapping works well as its unique identifier. */
-    mapid = (mapid_t) addr;
-    curr_page = addr;
-    for (i = 0; i < num_pages; i++)
-      {
-        bytes = length > PGSIZE ? PGSIZE : length;
+  /* Ensure that there is enough space for the mapping. */
+  for (i = 0; i < num_pages; i++)
+    {
+      if (supp_pt_lookup (&t->supp_pt, addr + i * PGSIZE))
+        {
+          goto error;
+        }
+    }
 
-        /* If one of the pages required by this mapping are in
-           use, then we cannot service the user process' request. */
-        if (!supp_pt_page_alloc_file (&t->supp_pt, curr_page,
-          file, i * PGSIZE, bytes, mapid, true))
-          {
-            /* Clean up the allocated supp_pte entries, if any;
-               note that since mappings are lazy loaded, there are
-               no frames to free. */
-            while (i > 0)
-              {
-                curr_page = (void *)((uintptr_t)curr_page - PGSIZE);
-                supp_pt_page_free (&t->supp_pt, curr_page);
-                i--;
-              }
-            lock_acquire (&filesys_lock);
-            file_close (file);
-            lock_release (&filesys_lock);
-            goto error;
-          }
+  /* Attempt to map the file into memory. Since no two mappings within
+     the same process can share user virtual addresses, the starting
+     address of the mapping works well as its unique identifier. */
+  mapid = (mapid_t) addr;
+  curr_page = addr;
+  for (i = 0; i < num_pages; i++)
+    {
+      bytes = length > PGSIZE ? PGSIZE : length;
 
-        length -= bytes;
-        curr_page = (void *)((uintptr_t)curr_page + PGSIZE);
-      }
+      if (!supp_pt_page_alloc_file (&t->supp_pt, curr_page,
+        file, i * PGSIZE, bytes, mapid, true))
+        {
+          /* Allocation failed -- we might have run out of memory.
+             Free whatever we allocated. */
+          while (i > 0)
+            {
+              curr_page = (void *)((uintptr_t)curr_page - PGSIZE);
+              supp_pt_page_free (&t->supp_pt, curr_page);
+              i--;
+            }
+          lock_acquire (&filesys_lock);
+          file_close (file);
+          lock_release (&filesys_lock);
+          goto error;
+        }
+
+      length -= bytes;
+      curr_page = (void *)((uintptr_t)curr_page + PGSIZE);
+    }
 
   f->eax = mapid;
   return;
