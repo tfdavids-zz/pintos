@@ -36,9 +36,7 @@ void swap_init (void)
   swap_slots = bitmap_create (num_swap_slots);
   if (swap_slots == NULL)
     PANIC ("bitmap creation failed--swap device is too large");
-  lock_acquire (&swap_slots_lock);
   bitmap_set_all (swap_slots, false);
-  lock_release (&swap_slots_lock);
 
 }
 

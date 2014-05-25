@@ -217,6 +217,7 @@ frame_evict (void)
 #ifndef NDEBUG
   memset (frame->kpage, 0xcc, PGSIZE);
 #endif
+
   return frame;
 }
 
