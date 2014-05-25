@@ -10,12 +10,21 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 
+/* Implements the interface to the swap device.
+ 
+   In particular, a bitmap is used to create an isomorphism
+   with the device -- the number of slots in the bitmap times
+   the number of sectors per page equals the size of the swap
+   device. A bit is on in the bitmap if and only if the corresponding
+   page in swap is currently being used to store some process' data. */
+
 static struct block *swap_device;
 static struct bitmap *swap_slots;
 static struct lock swap_slots_lock;
 static size_t sectors_per_page = PGSIZE / BLOCK_SECTOR_SIZE;
 size_t num_swap_slots;
 
+/* Initializes the swap system and the underlying bitmap. */
 void swap_init (void)
 {
   lock_init (&swap_slots_lock);
@@ -33,6 +42,11 @@ void swap_init (void)
 
 }
 
+/* Writes the data stored at the supplied kernel page to a
+   free swap slot, if any such slots exist.
+
+   Returns the index of the swap slot at which the data was written;
+   panics if swap is completely exhausted and no free slots were found. */
 size_t swap_write_page (void *kpage)
 {
   lock_acquire (&swap_slots_lock);
@@ -40,7 +54,9 @@ size_t swap_write_page (void *kpage)
   lock_release (&swap_slots_lock);
 
   if (free_slot_index == BITMAP_ERROR)
-    PANIC ("swap is full");
+    {
+      PANIC ("Swap is full.");
+    }
 
   size_t i;
   for (i = 0; i < sectors_per_page; i++)
@@ -52,7 +68,12 @@ size_t swap_write_page (void *kpage)
   return free_slot_index;
 }
 
-/* Load to kpage since upage is not yet present. */
+/* Given an index into the bitmap, fetch the data stored
+   in the corresponding swap location and load it into the 
+   memory referenced to by the supplied kernel virtual page.
+
+   Returns true if the data was successfully loaded; returns
+   false if the slot_index was invalid. */
 bool swap_load_page (size_t slot_index, void *kpage)
 {
   lock_acquire (&swap_slots_lock);
@@ -63,6 +84,7 @@ bool swap_load_page (size_t slot_index, void *kpage)
       return false;
     }
   lock_release (&swap_slots_lock);
+
   size_t i;
   for (i = 0; i < sectors_per_page; i++)
     {
@@ -77,7 +99,10 @@ bool swap_load_page (size_t slot_index, void *kpage)
   return true;
 }
 
-/* Frees the block at slot_index */
+/* Free the page stored in swap that corresponds to
+   the provided slot_index.
+
+   Returns true on successful free, false otherwise. */
 bool swap_free (size_t slot_index)
 {
   lock_acquire (&swap_slots_lock);
