@@ -5,6 +5,7 @@
 #include <string.h>
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
+#include "filesys/cache.h"
 #include "threads/malloc.h"
 
 /* Identifies an inode. */
@@ -36,7 +37,6 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct inode_disk data;             /* Inode content. */
   };
 
 /* Returns the block device sector that contains byte offset POS
@@ -47,8 +47,12 @@ static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) 
 {
   ASSERT (inode != NULL);
-  if (pos < inode->data.length)
-    return inode->data.start + pos / BLOCK_SECTOR_SIZE;
+
+  cache_add (fs_device, inode->sector);
+  struct inode_disk *disk_inode = (struct inode_disk *) cache_get (fs_device, inode->sector);
+
+  if (pos < disk_inode->length)
+    return disk_inode->start + pos / BLOCK_SECTOR_SIZE;
   else
     return -1;
 }
@@ -62,6 +66,7 @@ void
 inode_init (void) 
 {
   list_init (&open_inodes);
+  cache_init ();
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -137,7 +142,8 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  block_read (fs_device, inode->sector, &inode->data);
+  cache_add (fs_device, inode->sector);
+
   return inode;
 }
 
@@ -177,8 +183,10 @@ inode_close (struct inode *inode)
       if (inode->removed) 
         {
           free_map_release (inode->sector, 1);
-          free_map_release (inode->data.start,
-                            bytes_to_sectors (inode->data.length)); 
+          cache_add (fs_device, inode->sector);
+          struct inode_disk *disk_inode = (struct inode_disk *) cache_get (fs_device, inode->sector);
+          free_map_release (disk_inode->start,
+                            bytes_to_sectors (disk_inode->length)); 
         }
 
       free (inode); 
@@ -341,5 +349,7 @@ inode_allow_write (struct inode *inode)
 off_t
 inode_length (const struct inode *inode)
 {
-  return inode->data.length;
+  cache_add (fs_device, inode->sector);
+  struct inode_disk *disk_inode = (struct inode_disk *) cache_get (fs_device, inode->sector);
+  return disk_inode->length;
 }
