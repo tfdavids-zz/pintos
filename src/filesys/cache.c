@@ -5,6 +5,7 @@
 #include "lib/stdbool.h"
 #include "threads/malloc.h"
 #include "threads/synch.h"
+#include "threads/thread.h"
 #include "devices/block.h"
 
 #define NUM_CACHE_BLOCKS 64
@@ -93,6 +94,28 @@ bool cache_contains (struct block *block, block_sector_t sector)
   return false;
 }
 
+void read_next (void *aux)
+{
+  struct cache_entry *curr = (struct cache_entry *) aux;
+  struct cache_entry *next = malloc (sizeof (struct cache_entry));
+  next->block = curr->block;
+  next->sector = curr->sector + 1;
+  lock_init (&next->l);
+  block_read (next->block, next->sector, next->data);
+
+  if (num_cached_elements () >= NUM_CACHE_BLOCKS)
+    {
+      struct cache_entry *old = cache_eviction_candidate ();
+      lock_acquire (&old->l);
+      cache_replace (old, next);
+      lock_release (&old->l);
+    }
+  else
+    {
+      cache_insert (next);
+    }
+}
+
 void cache_read (struct block *block, block_sector_t sector, void *buffer)
 {
   struct list_elem *e;
@@ -133,6 +156,9 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
     {
       cache_insert (c);
     }
+
+  // read ahead
+  thread_create (NULL, PRI_DEFAULT, read_next, c); // TODO: possible race condition -- what if c is evicted first?
 
 }
 
