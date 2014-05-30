@@ -245,6 +245,7 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   list_push_back (&cache, &c->elem);
   lock_release (&cache_lock);
   block_read (block, sector, c->data);
+  memcpy (buffer, c->data, BLOCK_SECTOR_SIZE);
   lock_acquire (&cache_lock);
   c->loaded = true;
   lock_release (&cache_lock);
@@ -253,6 +254,8 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
 {
+  lock_acquire (&cache_lock);
+
   // check if cache contains block and sector
   struct list_elem *e;
   struct cache_entry *c;
@@ -267,6 +270,7 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
           lock_acquire (&c->l);
           lock_release (&cache_lock);
           memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
+          block_write (block, sector, c->data); // TODO: write-behind
           c->accessed = true;
           c->dirty = true;
           lock_release (&c->l);
