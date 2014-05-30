@@ -270,9 +270,10 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
           lock_acquire (&c->l);
           lock_release (&cache_lock);
           memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
-          block_write (block, sector, c->data); // TODO: write-behind
-          c->accessed = true;
           c->dirty = true;
+          block_write (block, sector, c->data); // TODO: write-behind
+          c->dirty = false;
+          c->accessed = true;
           lock_release (&c->l);
           return;
         }
@@ -305,7 +306,9 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
   list_push_back (&cache, &c->elem);
   lock_release (&cache_lock);
   memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
+  c->dirty = true;
   block_write (block, sector, c->data); // TODO: write-behind
+  c->dirty = false;
   lock_acquire (&cache_lock);
   c->loaded = true;
   lock_release (&cache_lock);
