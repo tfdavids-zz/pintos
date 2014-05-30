@@ -71,7 +71,7 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   struct cache_entry *c_copy = malloc (sizeof (struct cache_entry));
   memcpy (c_copy, c, sizeof (struct cache_entry));
   lock_release (&c->l);
-  thread_create ("read-ahead", PRI_DEFAULT, cache_read_ahead, c_copy);
+  thread_create ("read-ahead", PRI_MIN, cache_read_ahead, c_copy);
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
@@ -103,25 +103,18 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
   lock_release (&cache_lock);
   memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
   c->dirty = true;
-  lock_acquire (&cache_lock);
   c->loaded = true;
-  lock_release (&cache_lock);
   lock_release (&c->l);
 }
 
 void cache_write_dirty (struct cache_entry *c)
 {
+  thread_current ()->background = true;
   lock_acquire (&c->l);
   block_write (c->block, c->sector, c->data);
   c->dirty = false;
   c->writing_dirty = false;
   lock_release (&c->l);
-}
-
-void cache_read_ahead (struct cache_entry *c_copy)
-{
-  return;
-  // free (c_copy);
 }
 
 struct cache_entry *cache_get (struct block *block, block_sector_t sector)
@@ -179,4 +172,59 @@ struct cache_entry *cache_evict ()
     }
 
   return c;
+}
+
+void cache_flush (void)
+{
+  lock_acquire (&cache_lock);
+
+  struct cache_entry *c;
+  struct list_elem *e;
+
+  while (list_size (&cache) > 0)
+    {
+      e = list_pop_front (&cache);
+      c = list_entry (e, struct cache_entry, elem);
+      if (c->dirty)
+        {
+          lock_acquire (&c->l);
+          c->writing_dirty = true;
+          block_write (c->block, c->sector, c->data);
+          c->dirty = false;
+          c->writing_dirty = false;
+          lock_release (&c->l);
+        }
+
+      free (c);
+    }
+
+  lock_release (&cache_lock);
+}
+
+void cache_read_ahead (struct cache_entry *c)
+{
+  thread_current ()->background = true;
+  struct block *block = c->block;
+  block_sector_t sector = c->sector + 1;
+  free (c);
+
+  lock_acquire (&cache_lock);
+  
+  // check if cache contains block and sector
+  c = cache_get (block, sector);
+  if (c != NULL)
+      return;
+
+  // didn't find it, so pop something
+  c = cache_evict ();
+  
+  lock_acquire (&c->l);
+  c->block = block;
+  c->sector = sector;
+  c->loaded = false;
+  list_push_back (&cache, &c->elem);
+  lock_release (&cache_lock);
+  block_read (block, sector, c->data);
+  c->loaded = true;
+  lock_release (&c->l);
 }

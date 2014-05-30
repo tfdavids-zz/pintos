@@ -109,6 +109,8 @@ struct thread
     struct list_elem elem;              /* List element. */
     int nice;                           /* Niceness of thread, for mlfqs */
     fixed_point_t recent_cpu;           /* Recent cpu recieved, for mlfqs */
+    
+    bool background;                    /* Whether or not thread is background thread */
 
 #ifdef USERPROG
     /* State for managing children. */
