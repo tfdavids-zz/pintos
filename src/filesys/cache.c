@@ -184,9 +184,14 @@ struct cache_entry
   bool accessed;
   bool loaded;
   bool dirty;
+  bool writing_dirty; // if we're in the process of writing to disk
   char data[BLOCK_SECTOR_SIZE];
   struct lock l; // used for working with data[]
 };
+
+void cache_write_dirty (struct cache_entry *c);
+void cache_read_ahead (struct cache_entry *c);
+struct cache_entry *cache_get (struct block *block, block_sector_t sector);
 
 void cache_init (void)
 {
@@ -199,34 +204,40 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   lock_acquire (&cache_lock);
   
   // check if cache contains block and sector
-  struct list_elem *e;
-  struct cache_entry *c;
-
-  for (e = list_begin (&cache); e != list_end (&cache);
-       e = list_next (e))
+  struct cache_entry *c = cache_get (block, sector);
+  if (c != NULL)
     {
-      c = list_entry (e, struct cache_entry, elem);
-      if (c->block == block && c->sector == sector)
-        {
-          // we've found it -- act on it!
-          lock_acquire (&c->l);
-          lock_release (&cache_lock);
-          memcpy (buffer, c->data, BLOCK_SECTOR_SIZE);
-          c->accessed = true;
-          lock_release (&c->l);
-          return;
-        }
+      lock_acquire (&c->l);
+      lock_release (&cache_lock);
+      memcpy (buffer, c->data, BLOCK_SECTOR_SIZE);
+      c->accessed = true;
+      lock_release (&c->l);
+      return;
     }
 
   // didn't find it, so pop something
+  struct list_elem *e;
+
   if (list_size (&cache) >= NUM_CACHE_BLOCKS)
     {
       e = list_pop_front (&cache);
       c = list_entry (e, struct cache_entry, elem);
     
-      while (c->accessed == true)
+      while (c->accessed == true || c->dirty == true)
         {
-          c->accessed = false;
+          if (c->writing_dirty)
+            {
+              // do nothing
+            }
+          else if (c->dirty && !c->writing_dirty)
+            {
+              c->writing_dirty = true;
+              thread_create ("write-behind", PRI_DEFAULT, cache_write_dirty, c);
+            }
+          else if (c->accessed)
+            {
+              c->accessed = false;
+            }
           list_push_back (&cache, e);
           e = list_pop_front (&cache);
           c = list_entry (e, struct cache_entry, elem);
@@ -249,7 +260,10 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   lock_acquire (&cache_lock);
   c->loaded = true;
   lock_release (&cache_lock);
+  struct cache_entry *c_copy = malloc (sizeof (struct cache_entry));
+  memcpy (c_copy, c, sizeof (struct cache_entry));
   lock_release (&c->l);
+  thread_create ("read-ahead", PRI_DEFAULT, cache_read_ahead, c_copy);
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
@@ -257,29 +271,22 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
   lock_acquire (&cache_lock);
 
   // check if cache contains block and sector
-  struct list_elem *e;
-  struct cache_entry *c;
-
-  for (e = list_begin (&cache); e != list_end (&cache);
-       e = list_next (e))
+  struct cache_entry *c = cache_get (block, sector);
+  if (c != NULL)
     {
-      c = list_entry (e, struct cache_entry, elem);
-      if (c->block == block && c->sector == sector)
-        {
-          // we've found it -- act on it!
-          lock_acquire (&c->l);
-          lock_release (&cache_lock);
-          memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
-          c->dirty = true;
-          block_write (block, sector, c->data); // TODO: write-behind
-          c->dirty = false;
-          c->accessed = true;
-          lock_release (&c->l);
-          return;
-        }
+      lock_acquire (&c->l);
+      lock_release (&cache_lock);
+      memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
+      c->dirty = true;
+      c->writing_dirty = false;
+      c->accessed = true;
+      lock_release (&c->l);
+      return;
     }
 
   // didn't find it, so pop something
+  struct list_elem *e;
+
   if (list_size (&cache) >= NUM_CACHE_BLOCKS)
     {
       e = list_pop_front (&cache);
@@ -307,10 +314,40 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
   lock_release (&cache_lock);
   memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
   c->dirty = true;
-  block_write (block, sector, c->data); // TODO: write-behind
-  c->dirty = false;
   lock_acquire (&cache_lock);
   c->loaded = true;
   lock_release (&cache_lock);
   lock_release (&c->l);
+}
+
+void cache_write_dirty (struct cache_entry *c)
+{
+  lock_acquire (&c->l);
+  block_write (c->block, c->sector, c->data);
+  c->dirty = false;
+  c->writing_dirty = false;
+  lock_release (&c->l);
+}
+
+void cache_read_ahead (struct cache_entry *c_copy)
+{
+  free (c_copy);
+}
+
+struct cache_entry *cache_get (struct block *block, block_sector_t sector)
+{
+  struct list_elem *e;
+  struct cache_entry *c;
+
+  for (e = list_begin (&cache); e != list_end (&cache);
+       e = list_next (e))
+    {
+      c = list_entry (e, struct cache_entry, elem);
+      if (c->block == block && c->sector == sector)
+        {
+          return c;
+        }
+    }
+
+  return NULL;
 }
