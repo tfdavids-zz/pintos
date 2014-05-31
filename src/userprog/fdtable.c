@@ -6,31 +6,88 @@
 #include "threads/malloc.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "filesys/directory.h"
 
 /* Expand by a constant factor each time. */
 #define FD_EXPAND_FACTOR 2
 
+enum fd_type
+  {
+    FD_DIRECTORY,
+    FD_FILE,
+  };
+
+struct fd_entry
+  {
+    enum fd_type fd_type;
+    union
+      {
+        struct file *file;
+        struct dir *dir;
+      };
+  };
+
+static int fd_table_open (struct fd_entry *fd_entry);
 static int find_unused_fd (void);
 static bool expand_table (void);
 
 /* Open the supplied file, allocate a file descriptor for it,
    and return that file descriptor. Return -1 on error. */
 int
-fd_table_open (const char *file)
+fd_table_open_file (const char *file)
 {
-  struct thread *t = thread_current (); 
   struct file *f = filesys_open (file);
   if (f == NULL)
   {
     return -1;
   }
 
+  struct fd_entry *fd_entry = malloc (sizeof fd_entry);
+  fd_entry->fd_type = FD_FILE;
+  fd_entry->file = f;
+  int fd = fd_table_open (fd_entry);
+  if (fd == -1)
+    {
+      free (fd_entry);
+      file_close (f);
+    }
+  return fd;
+}
+
+int
+fd_table_open_dir (const char *dir)
+{
+  /* TODO: What interface should we use to
+           open directories? */
+  //struct dir *d = ?
+  struct dir *d;
+  if (d == NULL)
+  {
+    return -1;
+  }
+
+  struct fd_entry *fd_entry = malloc (sizeof (fd_entry));
+  fd_entry->fd_type = FD_FILE;
+  fd_entry->dir = d;
+  int fd = fd_table_open (fd_entry);
+  if (fd == -1)
+    {
+      free (fd_entry);
+      dir_close (d);
+    }
+  return fd;
+}
+
+static int
+fd_table_open (struct fd_entry *fd_entry)
+{
   /* Attempt to find an unused slot in our table for the
      newly opened file. */
+  struct thread *t = thread_current ();
   int fd = find_unused_fd ();
   if (fd > 0)
     {
-      t->fd_table[fd] = f;
+      t->fd_table[fd] = fd_entry;
       if ((size_t )fd > t->fd_table_tail_idx)
         {
           t->fd_table_tail_idx = fd;
@@ -44,9 +101,10 @@ fd_table_open (const char *file)
     {
       return -1;
     }
+
   fd = t->fd_table_tail_idx + 1;
   t->fd_table_tail_idx++;
-  t->fd_table[fd] = f;
+  t->fd_table[fd] = fd_entry;
   return fd;
 }
 
@@ -60,10 +118,23 @@ fd_table_get_file (int fd)
     return NULL;
   }
   struct thread *t = thread_current ();
-  return t->fd_table[fd];
+  return t->fd_table[fd]->file;
 }
 
-/* Close the file corresponding to the supplied file
+/* Return a pointer to the struct dir indexed by
+   the supplied file descriptor, or NULL on error. */
+struct dir *
+fd_table_get_dir (int fd)
+{
+  if (!fd_table_is_valid_fd (fd))
+  {
+    return NULL;
+  }
+  struct thread *t = thread_current ();
+  return t->fd_table[fd]->dir;
+}
+
+/* Close the file or directory corresponding to the supplied file
    descriptor and mark the file descriptor as unused.
    Return NULL on error. */
 bool
@@ -75,7 +146,18 @@ fd_table_close (int fd)
   }
 
   struct thread *t = thread_current ();
-  file_close (t->fd_table[fd]);
+  switch (t->fd_table[fd]->fd_type)
+    {
+      case FD_FILE:
+        file_close (t->fd_table[fd]->file);
+        break;
+      case FD_DIRECTORY:
+        dir_close (t->fd_table[fd]->dir);
+        break;
+      default:
+        NOT_REACHED ();
+    }
+  free (t->fd_table[fd]);
   t->fd_table[fd] = NULL;
 
   if ((size_t)fd == t->fd_table_tail_idx)
@@ -122,6 +204,23 @@ find_unused_fd (void)
   return -1;
 }
 
+/* Closes every file and directory in the fd_table, but
+   does not free the fd_table itself. */
+void
+fd_table_dispose (void)
+{
+  struct thread *t = thread_current ();
+
+  size_t i;
+  for (i = 0; i <= t->fd_table_tail_idx; i++)
+    {
+      if (t->fd_table[i] != NULL)
+      {
+        fd_table_close (i);
+      }
+    }
+}
+
 /* Grow the file descriptor table by a factor of FD_EXPAND_FACTOR;
    return false on error, true otherwise. */
 static bool
@@ -130,14 +229,15 @@ expand_table (void)
   struct thread *t = thread_current ();
 
   size_t new_size = t->fd_table_size * FD_EXPAND_FACTOR;
-  struct file **new_fd_table = calloc (new_size, sizeof (struct file *));
+  struct fd_entry **new_fd_table = calloc (new_size,
+    sizeof (struct fd_entry *));
   if (new_fd_table == NULL)
     {
       return false;
     }
 
   memcpy (new_fd_table, t->fd_table,
-    t->fd_table_size * sizeof (struct file *));
+    t->fd_table_size * sizeof (struct fd_entry *));
   free (t->fd_table);
   t->fd_table = new_fd_table;
   t->fd_table_size = new_size;

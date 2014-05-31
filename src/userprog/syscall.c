@@ -270,7 +270,7 @@ sys_open (struct intr_frame *f, const char *file)
 {
   exit_on (f, !is_valid_string (file));
   lock_acquire (&filesys_lock);
-  f->eax = fd_table_open (file);
+  f->eax = fd_table_open_file (file);
   lock_release (&filesys_lock);
 }
 

@@ -69,6 +69,7 @@ inode_init (void)
   cache_init ();
 }
 
+/* TODO: This needs to know whether we are making a file or directory */
 /* Initializes an inode with LENGTH bytes of data and
    writes the new inode to sector SECTOR on the file system
    device.
@@ -110,6 +111,7 @@ inode_create (block_sector_t sector, off_t length)
   return success;
 }
 
+/* TODO: Update this comment! */
 /* Reads an inode from SECTOR
    and returns a `struct inode' that contains it.
    Returns a null pointer if memory allocation fails. */
