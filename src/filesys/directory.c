@@ -181,7 +181,7 @@ dir_resolve_path (const char *path, struct dir **dir, char name[])
   if (path_cpy[0] == PATH_DELIM)
     {
       curr_dir = dir_open_root ();
-      for (; *left == '/'; left++); /* Skip leading slashes. */
+      for (; *left == PATH_DELIM; left++); /* Skip leading slashes. */
     }
   else
     {
@@ -220,7 +220,7 @@ dir_resolve_path (const char *path, struct dir **dir, char name[])
           free (path_cpy);
           return false;
         }
-      left = right + 1;
+      for (left = right; *left == PATH_DELIM; left++);
     }
 
   if (len - (uintptr_t)(left - path_cpy) > NAME_MAX)
