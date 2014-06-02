@@ -15,6 +15,7 @@ struct dir *fd_table_get_dir (int fd);
 bool fd_table_close (int fd);
 void fd_table_dispose (void);
 
+int fd_table_inumber (int fd);
 bool fd_table_is_file (int fd);
 bool fd_table_is_valid_fd (int fd);
 

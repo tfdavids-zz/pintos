@@ -251,6 +251,10 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
+  /* Ensure that the directory has not been deleted. */
+  if (inode_is_removed (dir->inode))
+    return false;
+
   /* Check NAME for validity. */
   if (*name == '\0' || strlen (name) > NAME_MAX)
     return false;
@@ -306,6 +310,45 @@ dir_remove (struct dir *dir, const char *name)
   if (inode == NULL)
     goto done;
 
+  /* If inode is a directory, ensure that it is empty before
+     removing it. */
+  if (!inode_is_file (inode))
+    {
+      struct dir *dir_rm = dir_open (inode);
+      struct dir_entry curr;
+      off_t pos;
+      for (pos = 0; inode_read_at (dir_rm->inode, &curr, sizeof curr, pos) ==
+        sizeof curr; pos += sizeof curr)
+        {
+          if (curr.in_use && strcmp(curr.name, CURR_DIR) != 0 &&
+            strcmp (curr.name, PREV_DIR) != 0)
+            {
+              dir_close (dir_rm);
+              goto done;
+            }
+        }
+
+      /* Remove . and .. */
+      struct dir_entry curr_dir, prev_dir;
+      off_t curr_dir_ofs, prev_dir_ofs;
+      if (!lookup (dir_rm, CURR_DIR, &curr_dir, &curr_dir_ofs) ||
+          !lookup (dir_rm, PREV_DIR, &prev_dir, &prev_dir_ofs))
+        {
+          dir_close (dir_rm);
+          goto done;
+        }
+      curr_dir.in_use = prev_dir.in_use = false;
+      if ((inode_write_at (dir_rm->inode, &curr_dir, sizeof curr_dir,
+                          curr_dir_ofs) != sizeof curr_dir) ||
+          (inode_write_at (dir_rm->inode, &prev_dir, sizeof prev_dir,
+                          prev_dir_ofs) != sizeof prev_dir))
+        {
+          dir_close (dir_rm);
+          goto done;
+        }
+      dir_close (dir_rm);
+    }
+
   /* Erase directory entry. */
   e.in_use = false;
   /* TODO: Block cache */
@@ -333,9 +376,11 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
     {
       dir->pos += sizeof e;
-      if (e.in_use)
+      if (e.in_use && strcmp(e.name, CURR_DIR) != 0 &&
+        strcmp (e.name, PREV_DIR) != 0)
         {
           strlcpy (name, e.name, NAME_MAX + 1);
+          printf ("Found entry! %s\n", name);
           return true;
         } 
     }

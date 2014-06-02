@@ -50,7 +50,7 @@ byte_to_sector (const struct inode *inode, off_t pos)
   ASSERT (inode != NULL);
 
   struct inode_disk disk_inode;
-  cache_read (fs_device, inode->sector, &disk_inode);
+  block_read (fs_device, inode->sector, &disk_inode);
 
   if (pos < disk_inode.length)
     return disk_inode.start + pos / BLOCK_SECTOR_SIZE;
@@ -67,10 +67,9 @@ void
 inode_init (void) 
 {
   list_init (&open_inodes);
-  cache_init ();
+  //cache_init ();
 }
 
-/* TODO: This needs to know whether we are making a file or directory */
 /* Initializes an inode with LENGTH bytes of data and
    writes the new inode to sector SECTOR on the file system
    device.
@@ -187,7 +186,7 @@ inode_close (struct inode *inode)
         {
           free_map_release (inode->sector, 1);
           struct inode_disk disk_inode;
-          cache_read (fs_device, inode->sector, &disk_inode);
+          block_read (fs_device, inode->sector, &disk_inode);
           free_map_release (disk_inode.start,
                             bytes_to_sectors (disk_inode.length)); 
         }
@@ -203,6 +202,14 @@ inode_remove (struct inode *inode)
 {
   ASSERT (inode != NULL);
   inode->removed = true;
+}
+
+/* Returns true if and only if the inode has been removed. */
+bool
+inode_is_removed (struct inode *inode)
+{
+  ASSERT (inode != NULL);
+  return inode->removed;
 }
 
 /* Reads SIZE bytes from INODE into BUFFER, starting at position OFFSET.
@@ -353,7 +360,7 @@ off_t
 inode_length (const struct inode *inode)
 {
   struct inode_disk disk_inode;
-  cache_read (fs_device, inode->sector, &disk_inode);
+  block_read (fs_device, inode->sector, &disk_inode);
   return disk_inode.length;
 }
 
@@ -363,6 +370,6 @@ bool
 inode_is_file (const struct inode *inode)
 {
   struct inode_disk disk_inode;
-  cache_read (fs_device, inode->sector, &disk_inode);
+  block_read (fs_device, inode->sector, &disk_inode);
   return disk_inode.type == I_FILE;
 }

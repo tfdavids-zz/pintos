@@ -20,6 +20,7 @@ bool filesys_create (const char *name, off_t initial_size);
 bool filesys_mkdir (const char *name);
 
 struct file *filesys_open (const char *name);
+struct dir *filesys_open_dir (const char *name);
 bool filesys_open_generic (const char *name,
   struct file **file, struct dir **dir);
 

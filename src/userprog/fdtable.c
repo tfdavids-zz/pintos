@@ -100,60 +100,6 @@ fd_table_open (const char *path)
   return fd;
 }
 
-#if 0
-int
-fd_table_open_dir (const char *dir)
-{
-  /* TODO: Verify that this works. */
-  struct dir *d = filesys_open_dir (dir);
-  if (d == NULL)
-    {
-      return -1;
-    }
-
-  struct fd_entry *fd_entry = malloc (sizeof (fd_entry));
-  fd_entry->fd_type = FD_FILE;
-  fd_entry->dir = d;
-  int fd = fd_table_open (fd_entry);
-  if (fd == -1)
-    {
-      free (fd_entry);
-      dir_close (d);
-    }
-  return fd;
-}
-
-static int
-fd_table_open (struct fd_entry *fd_entry)
-{
-  /* Attempt to find an unused slot in our table for the
-     newly opened file. */
-  struct thread *t = thread_current ();
-  int fd = find_unused_fd ();
-  if (fd > 0)
-    {
-      t->fd_table[fd] = fd_entry;
-      if ((size_t )fd > t->fd_table_tail_idx)
-        {
-          t->fd_table_tail_idx = fd;
-        }
-      return fd;
-    }
-
-  /* If we could not find an unused fd, then grow the table
-     and select an fd. */
-  if (!expand_table ())
-    {
-      return -1;
-    }
-
-  fd = t->fd_table_tail_idx + 1;
-  t->fd_table_tail_idx++;
-  t->fd_table[fd] = fd_entry;
-  return fd;
-}
-#endif
-
 /* Return a pointer to the struct file indexed by
    the supplied file descriptor, or NULL on error. */
 struct file *
@@ -211,6 +157,25 @@ fd_table_close (int fd)
       t->fd_table_tail_idx--;
     }
   return true;
+}
+
+/* Returns the inumber of the fd, or -1 on error. */
+int fd_table_inumber (int fd)
+{
+  if (!fd_table_is_valid_fd (fd))
+    {
+      return false;
+    }
+
+  struct thread *t = thread_current ();
+  if (t->fd_table[fd]->fd_type == FD_FILE)
+    {
+      return inode_get_inumber (file_get_inode (t->fd_table[fd]->file));
+    }
+  else
+    {
+      return inode_get_inumber (dir_get_inode (t->fd_table[fd]->dir));
+    }
 }
 
 /* Returns true iff a file is indexed by fd. */

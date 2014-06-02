@@ -116,7 +116,6 @@ filesys_open_generic (const char *name, struct file **file, struct dir **dir)
     {
       return false;
     }
-  struct inode *inode = NULL;
 
   if (strlen (entry_name) == 0)
     {
@@ -127,6 +126,7 @@ filesys_open_generic (const char *name, struct file **file, struct dir **dir)
       return true;
     }
 
+  struct inode *inode = NULL;
   dir_lookup (bottom_dir, entry_name, &inode);
   if (inode == NULL)
     {
@@ -169,6 +169,31 @@ filesys_open (const char *name)
   return file_open (inode);
 }
 
+struct dir *
+filesys_open_dir (const char *name)
+{
+  struct dir *dir;
+  char entry_name[NAME_MAX + 1];
+  if (!dir_resolve_path (name, &dir, entry_name))
+    {
+      return false;
+    }
+
+  if (strlen (entry_name) == 0)
+    {
+      /* TODO: Remove assert */
+      ASSERT (inode_get_inumber (dir_get_inode (dir)) ==
+                                 ROOT_DIR_SECTOR);
+      return dir;
+    }
+
+  struct inode *inode = NULL;
+  dir_lookup (dir, entry_name, &inode);
+  dir_close (dir);
+  return dir_open (inode);
+}
+
+
 /* TODO: Need a filesys_remove_dir fn. Or, need this
    to work with directory names as well. */
 /* TODO: Ensure that open (and therefore working as well)
@@ -189,7 +214,7 @@ filesys_remove (const char *name)
     {
       return false;
     }
-  bool success = dir_remove (dir, name);
+  bool success = dir_remove (dir, entry_name);
   dir_close (dir); 
 
   return success;
