@@ -4,8 +4,10 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "devices/block.h"
 #include "threads/fixed-point.h"
 #include "threads/synch.h"
+#include "userprog/fdtable.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -110,7 +112,8 @@ struct thread
     int nice;                           /* Niceness of thread, for mlfqs */
     fixed_point_t recent_cpu;           /* Recent cpu recieved, for mlfqs */
     
-    bool background;                    /* Whether or not thread is background thread */
+    bool background;                    /* Whether or not thread is background
+                                           thread */
 
 #ifdef USERPROG
     /* State for managing children. */
@@ -120,9 +123,12 @@ struct thread
     int exit_status;                    /* Exit status (if applicable) */
  
     /* State for managing file descriptors. */
-    struct file **fd_table;           /* The table of file descriptors. */
+    struct fd_entry **fd_table;        /* The table of file descriptors. */
     size_t fd_table_size;             /* The size of the table. */
     size_t fd_table_tail_idx;         /* Highest used fd. */
+
+    /* TODO: Should this be a dir instead? */
+    block_sector_t working_dir_inumber;
 
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */

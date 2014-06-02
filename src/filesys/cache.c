@@ -104,7 +104,7 @@ void cache_init (void)
 void cache_read (struct block *block, block_sector_t sector, void *buffer)
 {
   rw_reader_lock (&cache_lock);
-  
+
   // check if cache contains block and sector
   struct cache_entry *c = cache_get (block, sector);
   if (c != NULL)
