@@ -27,44 +27,89 @@ struct fd_entry
       };
   };
 
-static int fd_table_open (struct fd_entry *fd_entry);
 static int find_unused_fd (void);
 static bool expand_table (void);
+
+// Resolve the pathname
+// Determine if we're opening a directory or a file.
+// We do this by looking at entry_name -- if, when doing a lookup,
+// we find that entry_name is a dir, then it's a dir; otherwise, it's
+// a file.
+// We can have a nice filesys function that does this and tells us
+// if a path is a dir or a file.
 
 /* Open the supplied file, allocate a file descriptor for it,
    and return that file descriptor. Return -1 on error. */
 int
-fd_table_open_file (const char *file)
+fd_table_open (const char *path)
 {
-  struct file *f = filesys_open (file);
-  if (f == NULL)
-  {
-    return -1;
-  }
+  struct file *f;
+  struct dir *d;
+  if (!filesys_open_generic (path, &f, &d))
+    {
+      return -1;
+    }
+  /* TODO: Remove assert. */
+  ASSERT (f != NULL || d != NULL);
 
   struct fd_entry *fd_entry = malloc (sizeof fd_entry);
-  fd_entry->fd_type = FD_FILE;
-  fd_entry->file = f;
-  int fd = fd_table_open (fd_entry);
-  if (fd == -1)
+  if (f)
+    {
+      fd_entry->fd_type = FD_FILE;
+      fd_entry->file = f;
+    }
+  else
+    {
+      fd_entry->fd_type = FD_DIRECTORY;
+      fd_entry->dir = d;
+    }
+
+  /* Attempt to find an unused slot in our table for the
+     newly opened file. */
+  struct thread *t = thread_current ();
+  int fd = find_unused_fd ();
+  if (fd > 0)
+    {
+      t->fd_table[fd] = fd_entry;
+      if ((size_t )fd > t->fd_table_tail_idx)
+        {
+          t->fd_table_tail_idx = fd;
+        }
+      return fd;
+    }
+
+  /* If we could not find an unused fd, then grow the table
+     and select an fd. */
+  if (!expand_table ())
     {
       free (fd_entry);
-      file_close (f);
+      if (f)
+        {
+          file_close (f);
+        }
+      else
+        {
+          dir_close (d);
+        }
+      return -1;
     }
+
+  fd = t->fd_table_tail_idx + 1;
+  t->fd_table_tail_idx++;
+  t->fd_table[fd] = fd_entry;
   return fd;
 }
 
+#if 0
 int
 fd_table_open_dir (const char *dir)
 {
-  /* TODO: What interface should we use to
-           open directories? */
-  //struct dir *d = ?
-  struct dir *d;
+  /* TODO: Verify that this works. */
+  struct dir *d = filesys_open_dir (dir);
   if (d == NULL)
-  {
-    return -1;
-  }
+    {
+      return -1;
+    }
 
   struct fd_entry *fd_entry = malloc (sizeof (fd_entry));
   fd_entry->fd_type = FD_FILE;
@@ -107,6 +152,7 @@ fd_table_open (struct fd_entry *fd_entry)
   t->fd_table[fd] = fd_entry;
   return fd;
 }
+#endif
 
 /* Return a pointer to the struct file indexed by
    the supplied file descriptor, or NULL on error. */
@@ -141,9 +187,9 @@ bool
 fd_table_close (int fd)
 {
   if (!fd_table_is_valid_fd (fd))
-  {
-    return false;
-  }
+    {
+      return false;
+    }
 
   struct thread *t = thread_current ();
   switch (t->fd_table[fd]->fd_type)
@@ -165,6 +211,17 @@ fd_table_close (int fd)
       t->fd_table_tail_idx--;
     }
   return true;
+}
+
+/* Returns true iff a file is indexed by fd. */
+bool fd_table_is_file (int fd)
+{
+  if (!fd_table_is_valid_fd (fd))
+    {
+      return false;
+    }
+
+  return thread_current ()->fd_table[fd]->fd_type == FD_FILE;
 }
 
 /* Return true iff the supplied file descriptor is valid.

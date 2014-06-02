@@ -41,7 +41,7 @@ void cache_init (void)
 void cache_read (struct block *block, block_sector_t sector, void *buffer)
 {
   lock_acquire (&cache_lock);
-  
+
   // check if cache contains block and sector
   struct cache_entry *c = cache_get (block, sector);
   if (c != NULL)
@@ -144,7 +144,7 @@ struct cache_entry *cache_evict ()
     {
       e = list_pop_front (&cache);
       c = list_entry (e, struct cache_entry, elem);
-    
+
       while (c->accessed == true || c->dirty == true)
         {
           if (c->writing_dirty)

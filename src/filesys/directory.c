@@ -29,7 +29,7 @@ struct dir_entry
 bool
 dir_create (block_sector_t sector, size_t entry_cnt)
 {
-  return inode_create (sector, entry_cnt * sizeof (struct dir_entry));
+  return inode_create (sector, entry_cnt * sizeof (struct dir_entry), I_DIR);
 }
 
 /* Opens and returns the directory for the given INODE, of which
@@ -158,7 +158,8 @@ dir_lookup (const struct dir *dir, const char *name,
 bool
 dir_resolve_path (const char *path, struct dir **dir, char name[])
 {
-  if (path == NULL)
+  /* Sanity checks. */
+  if (path == NULL || *path == '\0')
     {
       return false;
     }
@@ -328,7 +329,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
   struct dir_entry e;
 
-  /* TODO: Block cache */
+  /* TODO: FS Block cache */
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
     {
       dir->pos += sizeof e;
