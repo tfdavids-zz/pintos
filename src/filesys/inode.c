@@ -178,6 +178,7 @@ inode_init (void)
 bool
 inode_create (block_sector_t sector, off_t length)
 {
+  printf("%u:create l= %u\n", sector, length); 
   struct inode_disk *disk_inode;
   bool success = false;
   ASSERT (length >= 0);
@@ -202,9 +203,27 @@ inode_create (block_sector_t sector, off_t length)
     }
   else
     {
+      size_t sectors = bytes_to_sectors (length);
       success = true;
       disk_inode->length = length;
+      disk_inode->magic = INODE_MAGIC;
+      /*TODO: this should be modified to work with indexing */
       block_write (fs_device, sector, disk_inode);
+      /*
+      if (free_map_allocate (sectors, &disk_inode->start)) 
+        {
+          cache_write (fs_device, sector, disk_inode);
+          if (sectors > 0) 
+            {
+              static char zeros[BLOCK_SECTOR_SIZE];
+              size_t i;
+              
+              for (i = 0; i < sectors; i++) 
+                cache_write (fs_device, disk_inode->start + i, zeros);
+            }
+          success = true; 
+        }
+      */
     }
 
   free (disk_inode);
@@ -285,10 +304,10 @@ inode_close (struct inode *inode)
       if (inode->removed) 
         {
           struct inode_disk disk_inode;
-          block_read (fs_device, inode->sector, &disk_inode);          
-          free_map_release (inode->sector, 1);
-          block_write (fs_device, inode->sector, zeros);
+          block_read (fs_device, inode->sector, &disk_inode);
           inode_free (&disk_inode);
+          block_write (fs_device, inode->sector, zeros);
+          free_map_release (inode->sector, 1);
         }
       free (inode); 
     }
@@ -688,14 +707,19 @@ inode_free (struct inode_disk *disk_inode)
 
   if (disk_inode->sectors > DIRECT_BLOCKS + PTRS_PER_INDIR_BLOCK)
     {
+      printf("freeing db\n");
       success &= inode_free_doubly_indir_blocks (disk_inode);
     }
   if (disk_inode->sectors > DIRECT_BLOCKS)
     {
+      printf("freeing id\n");
+
       success &= inode_free_indir_blocks (disk_inode);
     }
   if (disk_inode->sectors > 0)
     {
+      printf("freeing dir\n");
+
       success &= inode_free_dir_blocks (disk_inode);
     }
     
@@ -708,12 +732,16 @@ inode_free_dir_blocks (struct inode_disk *disk_inode)
   size_t sectors = disk_inode->sectors;
   size_t i;
 
+  printf("l= %u, sectors %u\n", disk_inode->length, disk_inode->sectors);
   /* Fill necessary dir blocks with zero */
   for (i = 0; i < sectors && i < DIRECT_BLOCKS; i++)
     {
+      printf ("a->");
       block_write (fs_device, disk_inode->block_ptrs[i], zeros); 
       free_map_release (1, disk_inode->block_ptrs[i]);
       disk_inode->sectors--;
+      printf ("<b\n");
+
     }
 
   return true;
@@ -769,6 +797,7 @@ inode_free_doubly_indir_blocks (struct inode_disk *disk_inode)
 
   for (i = 0; i < doubly_indir_off; i++)
     {
+      printf("a");
       block_read (fs_device, doubly_indir_block->block_ptrs[i], indir_block);
       freed_sectors = inode_free_indir_block (indir_block, indir_off);
       block_write (fs_device, doubly_indir_block->block_ptrs[i], zeros);
@@ -776,9 +805,11 @@ inode_free_doubly_indir_blocks (struct inode_disk *disk_inode)
 
       disk_inode->sectors -= freed_sectors;
       indir_off = get_indir_off (disk_inode->sectors);
+      printf("b");
 
     }
 
+  printf("problem here ?\n");
   block_write (fs_device, disk_inode->block_ptrs[DOUBLY_INDIR_BLOCK_INDEX],
                zeros);
   free_map_release (1, disk_inode->block_ptrs[DOUBLY_INDIR_BLOCK_INDEX]);
