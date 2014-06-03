@@ -195,7 +195,7 @@ inode_create (block_sector_t sector, off_t length, uint32_t type)
   block_write (fs_device, sector, disk_inode);
 
   /* Expand inode to given length */
-  if (inode_grow (disk_inode, length) != length)
+  if (inode_grow (disk_inode, length) != (size_t) length)
     {
       /* Delete the inode */
       success = false;
@@ -416,7 +416,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     {
       struct inode_disk *disk_inode;
       disk_inode = calloc_wrapper (1, sizeof *disk_inode);
-      disk_inode->length = inode_grow (disk_inode, offset + size);      
+      block_read (fs_device, inode->sector, disk_inode); /* TODO: cache_read */
+      disk_inode->length = inode_grow (disk_inode, offset + size);
+      block_write (fs_device, inode->sector, disk_inode); /* TODO: cache_write */
       free (disk_inode);
     }
 
@@ -749,7 +751,7 @@ inode_free_dir_blocks (struct inode_disk *disk_inode)
   for (i = 0; i < sectors && i < DIRECT_BLOCKS; i++)
     {
       block_write (fs_device, disk_inode->block_ptrs[i], zeros); 
-      free_map_release (1, disk_inode->block_ptrs[i]);
+      free_map_release (disk_inode->block_ptrs[i], 1);
       disk_inode->sectors--;
     }
 
@@ -776,7 +778,7 @@ inode_free_indir_blocks (struct inode_disk *disk_inode)
   disk_inode->sectors -= freed_sectors;
   block_write (fs_device, disk_inode->block_ptrs[INDIR_BLOCK_INDEX],
                zeros);
-  free_map_release (1, disk_inode->block_ptrs[INDIR_BLOCK_INDEX]);
+  free_map_release (disk_inode->block_ptrs[INDIR_BLOCK_INDEX], 1);
 
   success = true;
 
@@ -809,7 +811,7 @@ inode_free_doubly_indir_blocks (struct inode_disk *disk_inode)
       block_read (fs_device, doubly_indir_block->block_ptrs[i], indir_block);
       freed_sectors = inode_free_indir_block (indir_block, indir_off);
       block_write (fs_device, doubly_indir_block->block_ptrs[i], zeros);
-      free_map_release (1, doubly_indir_block->block_ptrs[i]);
+      free_map_release (doubly_indir_block->block_ptrs[i], 1);
 
       disk_inode->sectors -= freed_sectors;
       indir_off = get_indir_off (disk_inode->sectors);
@@ -817,7 +819,7 @@ inode_free_doubly_indir_blocks (struct inode_disk *disk_inode)
 
   block_write (fs_device, disk_inode->block_ptrs[DOUBLY_INDIR_BLOCK_INDEX],
                zeros);
-  free_map_release (1, disk_inode->block_ptrs[DOUBLY_INDIR_BLOCK_INDEX]);
+  free_map_release (disk_inode->block_ptrs[DOUBLY_INDIR_BLOCK_INDEX], 1);
 
   return true;
 }
@@ -834,7 +836,7 @@ inode_free_indir_block (struct indir_block_disk *indir_block,
   for (i = 0; i < indir_off; i++)
     {
       block_write (fs_device, indir_block->block_ptrs[i], zeros); 
-      free_map_release (1, indir_block->block_ptrs[i]);
+      free_map_release (indir_block->block_ptrs[i], 1);
       freed_sectors++;
     }
 
