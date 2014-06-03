@@ -31,6 +31,7 @@
 #include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "lib/debug.h"
 
 /* One semaphore in a list. */
 struct semaphore_elem 
@@ -135,7 +136,9 @@ cond_prio_less (const struct list_elem *a, const struct list_elem *b,
     void *aux)
 {
     struct semaphore_elem *sa = list_entry (a, struct semaphore_elem, elem);
+    ASSERT (!list_empty (&sa->semaphore.waiters));
     struct semaphore_elem *sb = list_entry (b, struct semaphore_elem, elem);
+    ASSERT (!list_empty (&sb->semaphore.waiters));
     return sema_prio_less (list_front (&sa->semaphore.waiters),
          list_front (&sb->semaphore.waiters),
          aux);
@@ -406,8 +409,9 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
 
   if (!list_empty (&cond->waiters))
     {
-      struct list_elem *max = list_max (&cond->waiters, &cond_prio_less, NULL);
-      list_remove (max);
+      // struct list_elem *max = list_max (&cond->waiters, &cond_prio_less, NULL);
+      // list_remove (max);
+      struct list_elem *max = list_pop_front (&cond->waiters); // just wake up any thread
       sema_up (&list_entry (max, struct semaphore_elem, elem)->semaphore);
     }
 }
