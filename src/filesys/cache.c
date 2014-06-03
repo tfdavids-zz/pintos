@@ -159,6 +159,7 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
 
   // read-ahead
+  /*
   c = cache_insert_write_lock (block, sector+1);
   c->loading = true;
   rw_writer_unlock (&c->l);
@@ -167,6 +168,7 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   list_push_back (&read_queue, &c->r_elem);
   cond_signal (&read_queue_empty, &read_queue_lock);
   lock_release (&read_queue_lock);
+  */
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
