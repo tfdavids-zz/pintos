@@ -167,6 +167,7 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
   // read-ahead
   c = cache_insert_write_lock (block, sector);
+  c->loading = true;
   rw_writer_unlock (&c->l);
 
   lock_acquire (&read_queue_lock);
@@ -397,12 +398,13 @@ cache_read_ahead (void *aux)
       e = list_pop_front (&read_queue))
       {
         c = list_entry (e, struct cache_entry, r_elem);
-        rw_reader_lock (&c->l);
+        rw_writer_lock (&c->l);
         //ASSERT (c->dirty);
         block_read (c->block, c->sector, c->data);
+        c->loading = false;
         //c->dirty = false; /* TODO: Should hold writer lock? */
         //c->writing_dirty = false;
-        rw_reader_unlock (&c->l);
+        rw_writer_unlock (&c->l);
       }
     lock_release (&read_queue_lock);
   }
