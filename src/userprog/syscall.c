@@ -433,10 +433,12 @@ sys_chdir (struct intr_frame *f, const char *dir)
     }
   else
     {
-      thread_current ()->working_dir_inumber = inode_get_inumber (
-        dir_get_inode (d));
+      if (thread_current ()->working_dir != NULL)
+        {
+          dir_close (thread_current ()->working_dir);
+        }
+      thread_current ()->working_dir = d;
       f->eax = true;
-      dir_close (d);
     }
   lock_release (&filesys_lock);
 }

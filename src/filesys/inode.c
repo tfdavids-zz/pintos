@@ -280,6 +280,13 @@ inode_reopen (struct inode *inode)
   return inode;
 }
 
+/* Returns the open count for INODE. */
+size_t
+inode_open_count (struct inode *inode)
+{
+  return inode->open_cnt;
+}
+
 /* Returns INODE's inode number. */
 block_sector_t
 inode_get_inumber (const struct inode *inode)
