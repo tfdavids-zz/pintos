@@ -417,7 +417,6 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         strcmp (e.name, PREV_DIR) != 0)
         {
           strlcpy (name, e.name, NAME_MAX + 1);
-          printf ("Found entry! %s\n", name);
           return true;
         } 
     }
