@@ -285,7 +285,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
             {
               // do nothing (wait for IO)
             }
-          else 
+          else
             {
               /* TODO: Acquire a writer lock? */
               if (c->dirty)
@@ -371,7 +371,7 @@ void cache_read_ahead (void *aux UNUSED)
         cond_wait (&unread_files, &uf_l);
 
       rw_reader_lock (&cache_lock);
-    
+
       for (e = list_begin (&cache); e != list_end (&cache);
            e = list_next (e))
         {
@@ -407,7 +407,7 @@ void cache_write_periodically (void *aux UNUSED)
       timer_msleep (30000);
 
       rw_reader_lock (&cache_lock);
-    
+
       for (e = list_begin (&cache); e != list_end (&cache);
            e = list_next (e))
         {
@@ -435,20 +435,41 @@ void cache_read_bytes (struct block *block, block_sector_t sector,
   else
     {
       c = cache_insert_write_lock (block, sector);
-    
+
       block_read (block, sector, c->data);
       memcpy (buffer, c->data + sector_ofs, chunk_size);
       c->loading = false;
       rw_writer_unlock (&c->l);
-    
+
       // read-ahead
       c = cache_insert_write_lock (block, sector + 1);
       c->should_read_ahead = true;
       rw_writer_unlock (&c->l);
-    
+
       lock_acquire (&uf_l);
       num_unread++;
       cond_broadcast (&unread_files, &uf_l);
       lock_release (&uf_l);
     }
-} 
+}
+
+void cache_write_bytes (struct block *block, block_sector_t sector,
+                        int sector_ofs, int chunk_size, void *buffer)
+{
+  struct cache_entry *c = cache_get_lock (block, sector, C_WRITE);
+  if (c != NULL)
+    {
+      memcpy (c->data + sector_ofs, buffer, chunk_size);
+      c->dirty = true;
+      rw_writer_unlock (&c->l);
+    }
+  else
+    {
+      c = cache_insert_write_lock (block, sector);
+
+      block_read (block, sector, c->data);
+      memcpy (c->data + sector_ofs, buffer, chunk_size);
+      c->dirty = true;
+      rw_writer_unlock (&c->l);
+    }
+}
