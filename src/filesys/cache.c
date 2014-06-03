@@ -83,10 +83,6 @@ static struct list cache;
 static struct rw cache_lock; // used for metadata
 static bool cache_full;
 
-static struct condition unread_files;
-static struct lock uf_l; // monitor lock
-static int num_unread;
-
 static bool running; /* For communicating with background threads. */
 
 /* For writing dirty cache entries encountered during eviction. */
@@ -130,13 +126,10 @@ void cache_init (void)
   list_init (&cache);
   list_init (&dirty_queue);
   list_init (&read_queue);
-  cond_init (&unread_files);
   cond_init (&dirty_queue_empty);
   cond_init (&read_queue_empty);
-  lock_init (&uf_l);
   lock_init (&dirty_queue_lock);
   lock_init (&read_queue_lock);
-  num_unread = 0;
   running = true;
 
   thread_create ("write-behind", PRI_DEFAULT, cache_write_dirty, NULL); /* TODO */
@@ -166,7 +159,7 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
 
   // read-ahead
-  c = cache_insert_write_lock (block, sector);
+  c = cache_insert_write_lock (block, sector+1);
   c->loading = true;
   rw_writer_unlock (&c->l);
 
@@ -174,19 +167,6 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   list_push_back (&read_queue, &c->r_elem);
   cond_signal (&read_queue_empty, &read_queue_lock);
   lock_release (&read_queue_lock);
-#if 0
-  c = cache_insert_write_lock (block, sector + 1);
-  c->should_read_ahead = true;
-  rw_writer_unlock (&c->l);
-
-  printf ("Acquiring cond lock!\n");
-  lock_acquire (&uf_l);
-  num_unread++;
-  printf ("Broadcasting!\n");
-  cond_broadcast (&unread_files, &uf_l);
-  lock_release (&uf_l);
-  printf ("Released cond lock!\n");
-#endif
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
@@ -399,54 +379,14 @@ cache_read_ahead (void *aux)
       {
         c = list_entry (e, struct cache_entry, r_elem);
         rw_writer_lock (&c->l);
-        //ASSERT (c->dirty);
         block_read (c->block, c->sector, c->data);
         c->loading = false;
-        //c->dirty = false; /* TODO: Should hold writer lock? */
-        //c->writing_dirty = false;
         rw_writer_unlock (&c->l);
       }
     lock_release (&read_queue_lock);
   }
 }
 
-/*
-void cache_read_ahead (void *aux UNUSED)
-{
-  thread_current ()->background = true;
-  struct list_elem *e;
-  struct cache_entry *c;
-
-  while (running)
-    {
-
-      lock_acquire (&uf_l);
-      while (num_unread == 0)
-        cond_wait (&unread_files, &uf_l);
-
-      rw_reader_lock (&cache_lock);
-
-      for (e = list_begin (&cache); e != list_end (&cache);
-           e = list_next (e))
-        {
-          c = list_entry (e, struct cache_entry, elem);
-          if (c->should_read_ahead)
-            {
-              rw_writer_lock (&c->l);
-              c->loading = true;
-              block_read (c->block, c->sector, c->data);
-              c->loading = false;
-              c->should_read_ahead = false;
-              num_unread--;
-              rw_writer_unlock (&c->l);
-            }
-        }
-
-      rw_reader_unlock (&cache_lock);
-      lock_release (&uf_l);
-    }
-}
-*/
 /*
 void cache_write_periodically (void *aux UNUSED)
 {
@@ -477,6 +417,7 @@ void cache_write_periodically (void *aux UNUSED)
     }
 }
 */
+
 void cache_read_bytes (struct block *block, block_sector_t sector,
                        int sector_ofs, int chunk_size, void *buffer)
 {
@@ -495,15 +436,7 @@ void cache_read_bytes (struct block *block, block_sector_t sector,
       c->loading = false;
       rw_writer_unlock (&c->l);
 
-      // read-ahead
-      c = cache_insert_write_lock (block, sector + 1);
-      c->should_read_ahead = true;
-      rw_writer_unlock (&c->l);
-
-      lock_acquire (&uf_l);
-      num_unread++;
-      cond_broadcast (&unread_files, &uf_l);
-      lock_release (&uf_l);
+      // TODO: read-ahead
     }
 }
 
