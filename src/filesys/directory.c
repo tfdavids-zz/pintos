@@ -6,6 +6,7 @@
 #include "filesys/inode.h"
 #include "threads/malloc.h"
 #include "threads/thread.h"
+#include "threads/interrupt.h"
 
 #define PATH_DELIM '/'
 
@@ -186,6 +187,11 @@ dir_resolve_path (const char *path, struct dir **dir, char name[])
     }
   else
     {
+      if (thread_current ()->working_dir_inumber == 0)
+        {
+          free (path_cpy);
+          return false;
+        }
       curr_dir = dir_open_inumber (thread_current ()->working_dir_inumber);
     }
 
@@ -287,6 +293,15 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   return success;
 }
 
+static void dir_invalidate (struct thread *t, void *aux)
+{
+  block_sector_t sector = *((block_sector_t *)aux);
+  if (t->working_dir_inumber == sector)
+    {
+      t->working_dir_inumber = 0;
+    }
+}
+
 /* Removes any entry for NAME in DIR.
    Returns true if successful, false on failure,
    which occurs only if there is no file with the given NAME. */
@@ -312,9 +327,10 @@ dir_remove (struct dir *dir, const char *name)
 
   /* If inode is a directory, ensure that it is empty before
      removing it. */
+  struct dir *dir_rm = NULL;
   if (!inode_is_file (inode))
     {
-      struct dir *dir_rm = dir_open (inode);
+      dir_rm = dir_open (inode);
       struct dir_entry curr;
       off_t pos;
       for (pos = 0; inode_read_at (dir_rm->inode, &curr, sizeof curr, pos) ==
@@ -323,7 +339,6 @@ dir_remove (struct dir *dir, const char *name)
           if (curr.in_use && strcmp(curr.name, CURR_DIR) != 0 &&
             strcmp (curr.name, PREV_DIR) != 0)
             {
-              dir_close (dir_rm);
               goto done;
             }
         }
@@ -334,7 +349,6 @@ dir_remove (struct dir *dir, const char *name)
       if (!lookup (dir_rm, CURR_DIR, &curr_dir, &curr_dir_ofs) ||
           !lookup (dir_rm, PREV_DIR, &prev_dir, &prev_dir_ofs))
         {
-          dir_close (dir_rm);
           goto done;
         }
       curr_dir.in_use = prev_dir.in_use = false;
@@ -343,10 +357,13 @@ dir_remove (struct dir *dir, const char *name)
           (inode_write_at (dir_rm->inode, &prev_dir, sizeof prev_dir,
                           prev_dir_ofs) != sizeof prev_dir))
         {
-          dir_close (dir_rm);
           goto done;
         }
-      dir_close (dir_rm);
+
+      block_sector_t invalid = inode_get_inumber (dir_rm->inode);
+      intr_disable ();
+      thread_foreach (dir_invalidate, &invalid);
+      intr_enable ();
     }
 
   /* Erase directory entry. */
@@ -360,7 +377,14 @@ dir_remove (struct dir *dir, const char *name)
   success = true;
 
  done:
-  inode_close (inode);
+  if (dir != NULL)
+    {
+      dir_close (dir_rm);
+    }
+  else
+    {
+      inode_close (inode);
+    }
   return success;
 }
 
@@ -372,7 +396,6 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
   struct dir_entry e;
 
-  /* TODO: FS Block cache */
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
     {
       dir->pos += sizeof e;

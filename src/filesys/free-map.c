@@ -53,6 +53,7 @@ free_map_release (block_sector_t sector, size_t cnt)
 void
 free_map_open (void) 
 {
+  printf ("About to open free map\n");
   free_map_file = file_open (inode_open (FREE_MAP_SECTOR));
   if (free_map_file == NULL)
     PANIC ("can't open free map");
