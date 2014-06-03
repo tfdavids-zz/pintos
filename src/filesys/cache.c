@@ -202,7 +202,6 @@ cache_write_dirty (void *aux)
 
   while (running)
   {
-    /* TODO: Cache flush will have to signal me to tell me to quit. */
     lock_acquire (&dirty_queue_lock);
     while (running && list_empty (&dirty_queue))
       {
@@ -211,6 +210,7 @@ cache_write_dirty (void *aux)
 
     if (list_empty (&dirty_queue))
       {
+        // running must be false, so quit
         lock_release (&dirty_queue_lock);
         break;
       }
