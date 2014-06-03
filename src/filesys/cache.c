@@ -107,7 +107,6 @@ struct cache_entry
   bool loading;                 /* True if entry's data is being loaded. */
   bool dirty;                   /* True if entry's data has been modified. */
   bool writing_dirty;           /* True if writing to disk. */
-  bool should_read_ahead;       /* True if should be read ahead. */
   char data[BLOCK_SECTOR_SIZE]; /* The cached data. */
   struct rw l;                  /* To synchronize access to the entry. */
 };
@@ -160,13 +159,12 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
   // read-ahead
   c = cache_insert_write_lock (block, sector+1);
-  c->loading = true;
   rw_writer_unlock (&c->l);
 
-  lock_acquire (&read_queue_lock);
-  list_push_back (&read_queue, &c->r_elem);
-  cond_signal (&read_queue_empty, &read_queue_lock);
-  lock_release (&read_queue_lock);
+  //lock_acquire (&read_queue_lock);
+  //list_push_back (&read_queue, &c->r_elem);
+  //cond_signal (&read_queue_empty, &read_queue_lock);
+  //lock_release (&read_queue_lock);
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
@@ -311,7 +309,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
       /* TODO: Remove prints. */
       while (c->loading || c->accessed || c->dirty)
         {
-          if (c->writing_dirty || c->loading || c->should_read_ahead)
+          if (c->writing_dirty || c->loading)
             {
               // do nothing (wait for IO)
             }
