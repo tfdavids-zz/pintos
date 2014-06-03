@@ -424,6 +424,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       struct inode_disk *disk_inode;
       disk_inode = calloc_wrapper (1, sizeof *disk_inode);
       block_read (fs_device, inode->sector, disk_inode); /* TODO: cache_read */
+      size_t new_length_sectors = bytes_to_sectors (offset + size);
       disk_inode->length = inode_grow (disk_inode, offset + size);
       block_write (fs_device, inode->sector, disk_inode); /* TODO: cache_write */
       free (disk_inode);
@@ -600,6 +601,12 @@ inode_grow_indir_blocks (struct inode_disk *disk_inode,
   size_t added_sectors = 0;
   bool success = false;
   struct indir_block_disk *indir_block;
+
+  /* No room in the indirect blook */
+  if (next_block >= DIRECT_BLOCKS + PTRS_PER_INDIR_BLOCK)
+    {
+      return true;
+    }
   indir_block = calloc_wrapper (1, sizeof *indir_block);
   
   /* Create an indir block if necessary */
@@ -648,6 +655,13 @@ inode_grow_doubly_indir_blocks (struct inode_disk *disk_inode,
 
   struct indir_block_disk *indir_block;
   struct indir_block_disk *doubly_indir_block;
+
+  /* No room in the doubly indirect blook */
+  if (next_block >= DIRECT_BLOCKS + PTRS_PER_INDIR_BLOCK +
+      PTRS_PER_INDIR_BLOCK * PTRS_PER_INDIR_BLOCK)
+    {
+      return true;
+    }
 
   indir_block = calloc_wrapper (1, sizeof *indir_block);
   doubly_indir_block = calloc_wrapper (1, sizeof *doubly_indir_block);
