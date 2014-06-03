@@ -234,7 +234,6 @@ cache_read_ahead (void *aux)
 
   while (running)
   {
-    /* TODO: Cache flush will have to signal me to tell me to quit. */
     lock_acquire (&read_queue_lock);
     while (running && list_empty (&read_queue))
       {
@@ -359,6 +358,19 @@ void cache_flush (void)
 
   /* TODO: Should we force read-ahead
      and write-behind to die before proceeding? */
+
+  /* Force read-ahead and write-behind to die. */
+  running = false;
+
+  lock_acquire (&read_queue_lock);
+  cond_signal (&read_queue_empty, &read_queue_lock);
+  lock_release (&read_queue_lock);
+
+  lock_acquire (&dirty_queue_lock);
+  cond_signal (&dirty_queue_empty, &dirty_queue_lock);
+  lock_release (&dirty_queue_lock);
+
+  /* Now clear the cache. */
   while (list_size (&cache) > 0)
     {
       ASSERT (!list_empty (&cache));
@@ -380,7 +392,6 @@ void cache_flush (void)
     }
 
   cache_full = false;
-  running = false;
 
   rw_writer_unlock (&cache_lock);
 }
