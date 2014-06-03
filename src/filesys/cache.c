@@ -325,7 +325,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
 
       while (c->loading || c->accessed || c->dirty)
         {
-          if (c->writing_dirty)
+          if (c->writing_dirty || c->loading || c->should_read_ahead)
             {
               // if (c->accessed)
               //   c->accessed = false;
@@ -380,7 +380,7 @@ void cache_flush (void)
      and write-behind to die before proceeding? */
 
   /* Force read-ahead and write-behind to die. */
-  running = false;
+  // running = false;
 
   // lock_acquire (&read_queue_lock);
   // cond_signal (&read_queue_empty, &read_queue_lock);
@@ -412,6 +412,7 @@ void cache_flush (void)
     }
 
   cache_full = false;
+  running = false;
 
   rw_writer_unlock (&cache_lock);
 }
