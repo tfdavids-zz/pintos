@@ -159,7 +159,6 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
 
   // read-ahead
-  /*
   c = cache_insert_write_lock (block, sector+1);
   c->loading = true;
   rw_writer_unlock (&c->l);
@@ -168,7 +167,6 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   list_push_back (&read_queue, &c->r_elem);
   cond_signal (&read_queue_empty, &read_queue_lock);
   lock_release (&read_queue_lock);
-  */
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
@@ -225,6 +223,38 @@ cache_write_dirty (void *aux)
         rw_reader_unlock (&c->l);
       }
     lock_release (&dirty_queue_lock);
+  }
+}
+
+/* TODO */
+void
+cache_read_ahead (void *aux)
+{
+ /* TODO: I suspect that a background thread will not free all
+    the resources that it is supposed to free. */
+  thread_current ()->background = true;
+
+  while (running)
+  {
+    /* TODO: Cache flush will have to signal me to tell me to quit. */
+    lock_acquire (&read_queue_lock);
+    while (running && list_empty (&read_queue))
+      {
+        cond_wait (&read_queue_empty, &read_queue_lock);
+      }
+
+    struct list_elem *e;
+    struct cache_entry *c;
+    for (e = list_pop_front (&read_queue); !list_empty (&read_queue);
+      e = list_pop_front (&read_queue))
+      {
+        c = list_entry (e, struct cache_entry, r_elem);
+        rw_writer_lock (&c->l);
+        block_read (c->block, c->sector, c->data);
+        c->loading = false;
+        rw_writer_unlock (&c->l);
+      }
+    lock_release (&read_queue_lock);
   }
 }
 
@@ -355,38 +385,6 @@ void cache_flush (void)
   running = false;
 
   rw_writer_unlock (&cache_lock);
-}
-
-/* TODO */
-void
-cache_read_ahead (void *aux)
-{
- /* TODO: I suspect that a background thread will not free all
-    the resources that it is supposed to free. */
-  thread_current ()->background = true;
-
-  while (running)
-  {
-    /* TODO: Cache flush will have to signal me to tell me to quit. */
-    lock_acquire (&read_queue_lock);
-    while (running && list_empty (&read_queue))
-      {
-        cond_wait (&read_queue_empty, &read_queue_lock);
-      }
-
-    struct list_elem *e;
-    struct cache_entry *c;
-    for (e = list_pop_front (&read_queue); !list_empty (&read_queue);
-      e = list_pop_front (&read_queue))
-      {
-        c = list_entry (e, struct cache_entry, r_elem);
-        rw_writer_lock (&c->l);
-        block_read (c->block, c->sector, c->data);
-        c->loading = false;
-        rw_writer_unlock (&c->l);
-      }
-    lock_release (&read_queue_lock);
-  }
 }
 
 /*
