@@ -94,10 +94,16 @@ static struct list dirty_queue;
 static struct condition dirty_queue_empty;
 static struct lock dirty_queue_lock;
 
+/* For reading ahead. */
+static struct list read_queue;
+static struct condition read_queue_empty;
+static struct lock read_queue_lock;
+
 struct cache_entry
 {
   struct list_elem elem;   /* For the cache list. */
   struct list_elem d_elem; /* For the dirty list. */
+  struct list_elem r_elem; /* For the read-ahead list. */
 
   struct block *block;
   block_sector_t sector;
@@ -123,15 +129,18 @@ void cache_init (void)
   rw_init (&cache_lock);
   list_init (&cache);
   list_init (&dirty_queue);
+  list_init (&read_queue);
   cond_init (&unread_files);
   cond_init (&dirty_queue_empty);
+  cond_init (&read_queue_empty);
   lock_init (&uf_l);
   lock_init (&dirty_queue_lock);
+  lock_init (&read_queue_lock);
   num_unread = 0;
   running = true;
 
   thread_create ("write-behind", PRI_DEFAULT, cache_write_dirty, NULL); /* TODO */
-  // thread_create ("read-ahead", PRI_MIN, cache_read_ahead, NULL);
+  thread_create ("read-ahead", PRI_MIN, cache_read_ahead, NULL);
   // thread_create ("write-periodically", PRI_MIN, cache_write_periodically, NULL);
 }
 
@@ -155,7 +164,15 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   c->loading = false;
   rw_writer_unlock (&c->l);
 
+
   // read-ahead
+  c = cache_insert_write_lock (block, sector);
+  rw_writer_unlock (&c->l);
+
+  lock_acquire (&read_queue_lock);
+  list_push_back (&read_queue, &c->r_elem);
+  cond_signal (&read_queue_empty, &read_queue_lock);
+  lock_release (&read_queue_lock);
 #if 0
   c = cache_insert_write_lock (block, sector + 1);
   c->should_read_ahead = true;
@@ -356,6 +373,41 @@ void cache_flush (void)
 
   rw_writer_unlock (&cache_lock);
 }
+
+/* TODO */
+void
+cache_read_ahead (void *aux)
+{
+ /* TODO: I suspect that a background thread will not free all
+    the resources that it is supposed to free. */
+  thread_current ()->background = true;
+
+  while (running)
+  {
+    /* TODO: Cache flush will have to signal me to tell me to quit. */
+    lock_acquire (&read_queue_lock);
+    while (running && list_empty (&read_queue))
+      {
+        cond_wait (&read_queue_empty, &read_queue_lock);
+      }
+
+    struct list_elem *e;
+    struct cache_entry *c;
+    for (e = list_pop_front (&read_queue); !list_empty (&read_queue);
+      e = list_pop_front (&read_queue))
+      {
+        c = list_entry (e, struct cache_entry, r_elem);
+        rw_reader_lock (&c->l);
+        //ASSERT (c->dirty);
+        block_read (c->block, c->sector, c->data);
+        //c->dirty = false; /* TODO: Should hold writer lock? */
+        //c->writing_dirty = false;
+        rw_reader_unlock (&c->l);
+      }
+    lock_release (&read_queue_lock);
+  }
+}
+
 /*
 void cache_read_ahead (void *aux UNUSED)
 {
