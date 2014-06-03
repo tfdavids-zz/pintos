@@ -323,11 +323,14 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
       c = list_entry (e, struct cache_entry, elem);
 
       /* TODO: Remove prints. */
-      while (c->loading || c->accessed || c->dirty)
+      while (c->accessed || c->dirty)
         {
-          if (c->writing_dirty || c->loading)
+          if (c->writing_dirty)
             {
-              // do nothing (wait for IO)
+              if (c->accessed)
+                c->accessed = false;
+              else
+                break;
             }
           else
             {
