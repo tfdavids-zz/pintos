@@ -712,7 +712,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
   t->exit_status = -1; /* By default, assume error. */
-  t->working_dir_inumber = ROOT_DIR_SECTOR; /* TODO This is sketch */
+  t->working_dir = NULL; /* NULL denotes root here. */
   if (thread_mlfqs)
     {
       if (t == initial_thread)

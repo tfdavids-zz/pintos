@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "devices/block.h"
+#include "filesys/directory.h"
 #include "threads/fixed-point.h"
 #include "threads/synch.h"
 #include "userprog/fdtable.h"
@@ -128,7 +129,7 @@ struct thread
     size_t fd_table_tail_idx;         /* Highest used fd. */
 
     /* TODO: Should this be a dir instead? */
-    block_sector_t working_dir_inumber;
+    struct dir *working_dir;
 
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */

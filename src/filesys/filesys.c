@@ -93,12 +93,9 @@ filesys_mkdir (const char *name)
   success = (dir_add (new_dir, CURR_DIR,
             inode_get_inumber (dir_get_inode (new_dir)))
             && dir_add (new_dir, PREV_DIR,
-            inode_get_inumber (dir_get_inode (new_dir))));
+            inode_get_inumber (dir_get_inode (dir))));
     
-  if (!success)
-    {
-      dir_close (new_dir);
-    }
+  dir_close (new_dir);
   
  done:
   dir_close (dir);
