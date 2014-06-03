@@ -382,13 +382,13 @@ void cache_flush (void)
   /* Force read-ahead and write-behind to die. */
   running = false;
 
-  // lock_acquire (&read_queue_lock);
-  // cond_signal (&read_queue_empty, &read_queue_lock);
-  // lock_release (&read_queue_lock);
-  //
-  // lock_acquire (&dirty_queue_lock);
-  // cond_signal (&dirty_queue_empty, &dirty_queue_lock);
-  // lock_release (&dirty_queue_lock);
+  lock_acquire (&read_queue_lock);
+  cond_signal (&read_queue_empty, &read_queue_lock);
+  lock_release (&read_queue_lock);
+  
+  lock_acquire (&dirty_queue_lock);
+  cond_signal (&dirty_queue_empty, &dirty_queue_lock);
+  lock_release (&dirty_queue_lock);
 
   /* Now clear the cache. */
   while (list_size (&cache) > 0)
