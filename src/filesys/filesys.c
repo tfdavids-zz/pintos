@@ -195,12 +195,6 @@ filesys_open_dir (const char *name)
   return dir_open (inode);
 }
 
-
-/* TODO: Need a filesys_remove_dir fn. Or, need this
-   to work with directory names as well. */
-/* TODO: Ensure that open (and therefore working as well)
-   directories cannot be removed. (Maybe) */
-
 /* Deletes the file named NAME.
    Returns true if successful, false on failure.
    Fails if no file named NAME exists,
@@ -208,8 +202,6 @@ filesys_open_dir (const char *name)
 bool
 filesys_remove (const char *name) 
 {
-  /* TODO Resolve pathname. */
-  /* TODO Resolve directory implicitly specified by pathname. */
   struct dir *dir;
   char entry_name[NAME_MAX + 1];
   if (!dir_resolve_path (name, &dir, entry_name))

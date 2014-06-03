@@ -110,7 +110,6 @@ lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  /* TODO: This should use the block cache ... */
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
     if (e.in_use && !strcmp (name, e.name)) 
@@ -167,6 +166,8 @@ dir_resolve_path (const char *path, struct dir **dir, char name[])
   /* Make a copy of the user string, for convenience. */
   size_t len = strlen (path);
   char *path_cpy = malloc (len + 1);
+  if (!path_cpy)
+    return false;
   strlcpy (path_cpy, path, len + 1);
 
   /* Strip trailing slashes, if any. */
