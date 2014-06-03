@@ -475,6 +475,7 @@ void cache_write_bytes (struct block *block, block_sector_t sector,
 
       block_read (block, sector, c->data);
       memcpy (c->data + sector_ofs, buffer, chunk_size);
+      c->loading = false;
       c->dirty = true;
       rw_writer_unlock (&c->l);
     }
