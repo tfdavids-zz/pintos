@@ -131,7 +131,7 @@ fsutil_extract (char **argv UNUSED)
               int chunk_size = (size > BLOCK_SECTOR_SIZE
                                 ? BLOCK_SECTOR_SIZE
                                 : size);
-              cache_read (src, sector++, data);
+              block_read (src, sector++, data);
               if (file_write (dst, data, chunk_size) != chunk_size)
                 PANIC ("%s: write failed with %d bytes unwritten",
                        file_name, size);
