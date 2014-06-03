@@ -107,6 +107,7 @@ struct cache_entry
   bool loading;                 /* True if entry's data is being loaded. */
   bool dirty;                   /* True if entry's data has been modified. */
   bool writing_dirty;           /* True if writing to disk. */
+  bool should_read_ahead;
   char data[BLOCK_SECTOR_SIZE]; /* The cached data. */
   struct rw l;                  /* To synchronize access to the entry. */
 };
@@ -208,12 +209,12 @@ cache_write_dirty (void *aux)
         cond_wait (&dirty_queue_empty, &dirty_queue_lock);
       }
 
-    if (list_empty (&dirty_queue))
-      {
-        // running must be false, so quit
-        lock_release (&dirty_queue_lock);
-        break;
-      }
+    // if (list_empty (&dirty_queue))
+    //   {
+    //     // running must be false, so quit
+    //     lock_release (&dirty_queue_lock);
+    //     break;
+    //   }
 
     struct list_elem *e;
     struct cache_entry *c;
@@ -304,13 +305,13 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
 
   rw_writer_lock (&cache_lock);
 
-  for (e = list_begin (&cache); e != list_end (&cache);
-       e = list_next (e))
-    {
-      c = list_entry (e, struct cache_entry, elem);
-      if (c->block == block && c->sector == sector)
-        return NULL;
-    }
+  // for (e = list_begin (&cache); e != list_end (&cache);
+  //      e = list_next (e))
+  //   {
+  //     c = list_entry (e, struct cache_entry, elem);
+  //     if (c->block == block && c->sector == sector)
+  //       return NULL;
+  //   }
 
   if (cache_full || list_size (&cache) >= NUM_CACHE_BLOCKS)
     {
@@ -322,18 +323,14 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
       /* TODO: Synchronization. Acquire a reader lock? */
       c = list_entry (e, struct cache_entry, elem);
 
-      /* TODO: Remove prints. */
-      int i = 0;
       while (c->loading || c->accessed || c->dirty)
         {
-          i++;
-          printf ("starting cycle %d\n", i);
           if (c->writing_dirty)
             {
-              if (c->accessed)
-                c->accessed = false;
-              else
-                break;
+              // if (c->accessed)
+              //   c->accessed = false;
+              // else
+              //   break;
             }
           else
             {
@@ -385,13 +382,13 @@ void cache_flush (void)
   /* Force read-ahead and write-behind to die. */
   running = false;
 
-  lock_acquire (&read_queue_lock);
-  cond_signal (&read_queue_empty, &read_queue_lock);
-  lock_release (&read_queue_lock);
-
-  lock_acquire (&dirty_queue_lock);
-  cond_signal (&dirty_queue_empty, &dirty_queue_lock);
-  lock_release (&dirty_queue_lock);
+  // lock_acquire (&read_queue_lock);
+  // cond_signal (&read_queue_empty, &read_queue_lock);
+  // lock_release (&read_queue_lock);
+  //
+  // lock_acquire (&dirty_queue_lock);
+  // cond_signal (&dirty_queue_empty, &dirty_queue_lock);
+  // lock_release (&dirty_queue_lock);
 
   /* Now clear the cache. */
   while (list_size (&cache) > 0)
