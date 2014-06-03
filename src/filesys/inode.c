@@ -194,7 +194,7 @@ inode_create (block_sector_t sector, off_t length)
   block_write (fs_device, sector, disk_inode);
   
   /* Expand inode to given length */
-  if (inode_grow (disk_inode, length) != length)
+  if (inode_grow (disk_inode, length) != (size_t) length)
     {
       /* Delete the inode */
       success = false;
@@ -404,7 +404,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     {
       struct inode_disk *disk_inode;
       disk_inode = Calloc (1, sizeof *disk_inode);
+      block_read (fs_device, inode->sector, disk_inode); /* TODO: cache_read */
       disk_inode->length = inode_grow (disk_inode, offset + size);      
+      block_write (fs_device, inode->sector, disk_inode); /* TODO: cache_write :( */
       free (disk_inode);
     }
 
@@ -513,17 +515,17 @@ inode_grow (struct inode_disk *disk_inode, off_t new_length)
 
   if (disk_inode->sectors < new_length_sectors)
     {
-      success &= inode_grow_dir_blocks (disk_inode, new_length_sectors);
+      success = inode_grow_dir_blocks (disk_inode, new_length_sectors);
     }
 
   if (disk_inode->sectors < new_length_sectors && success)
     {
-      success &= inode_grow_indir_blocks (disk_inode, new_length_sectors);
+      success = inode_grow_indir_blocks (disk_inode, new_length_sectors);
     }
 
   if (disk_inode->sectors < new_length_sectors && success)
     {
-      success &= inode_grow_doubly_indir_blocks (disk_inode, new_length_sectors);
+      success = inode_grow_doubly_indir_blocks (disk_inode, new_length_sectors);
     }
 
   if (disk_inode->sectors == new_length_sectors)
@@ -706,15 +708,15 @@ inode_free (struct inode_disk *disk_inode)
 
   if (disk_inode->sectors > DIRECT_BLOCKS + PTRS_PER_INDIR_BLOCK)
     {
-      success &= inode_free_doubly_indir_blocks (disk_inode);
+      success = success && inode_free_doubly_indir_blocks (disk_inode);
     }
   if (disk_inode->sectors > DIRECT_BLOCKS)
     {
-      success &= inode_free_indir_blocks (disk_inode);
+      success = success && inode_free_indir_blocks (disk_inode);
     }
   if (disk_inode->sectors > 0)
     {
-      success &= inode_free_dir_blocks (disk_inode);
+      success = success && inode_free_dir_blocks (disk_inode);
     }
     
   return success;
