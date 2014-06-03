@@ -159,6 +159,8 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
   // read-ahead
   c = cache_insert_write_lock (block, sector+1);
+  if (c == NULL)
+    return;
   rw_writer_unlock (&c->l);
 
   //lock_acquire (&read_queue_lock);
@@ -294,6 +296,14 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
   struct list_elem *e;
 
   rw_writer_lock (&cache_lock);
+
+  for (e = list_begin (&cache); e != list_end (&cache);
+       e = list_next (e))
+    {
+      c = list_entry (e, struct cache_entry, elem);
+      if (c->block == block && c->sector == sector)
+        return NULL;
+    }
 
   if (cache_full || list_size (&cache) >= NUM_CACHE_BLOCKS)
     {
