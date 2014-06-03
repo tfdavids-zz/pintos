@@ -114,9 +114,7 @@ void cache_init (void)
   list_init (&cache);
   cond_init (&unread_files);
   lock_init (&uf_l);
-
   num_unread = 0;
-
   running = true;
 
   // thread_create ("read-ahead", PRI_MIN, cache_read_ahead, NULL);
@@ -148,8 +146,14 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
   // read-ahead
   c = cache_insert (block, sector + 1);
-  c->loading = true;
+  c->needs_loading = true;
   rw_writer_unlock (&c->l);
+
+  lock_acquire (&uf_l);
+  num_unread++;
+  cond_broadcast (&unread_files, &uf_l);
+  lock_release (&uf_l);
+
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
@@ -255,7 +259,7 @@ struct cache_entry *cache_insert (struct block *block, block_sector_t sector)
 
       while (c->loading || c->accessed || c->dirty)
         {
-          if (c->writing_dirty || c->loading)
+          if (c->writing_dirty || c->loading || c->needs_loading)
             {
               // do nothing (wait for IO)
             }
@@ -285,13 +289,8 @@ struct cache_entry *cache_insert (struct block *block, block_sector_t sector)
   list_push_back (&cache, &c->elem);
   c->sector = sector;
   c->block = block;
-  c->needs_loading = true;
+  c->loading = true;
   rw_writer_unlock (&cache_lock);
-
-  lock_acquire (&uf_l);
-  num_unread++;
-  cond_broadcast (&unread_files, &uf_l);
-  lock_release (&uf_l);
 
   return c;
 }
@@ -349,6 +348,7 @@ void cache_read_ahead (void *aux UNUSED)
           if (c->needs_loading)
             {
               rw_writer_lock (&c->l);
+              c->loading = true;
               block_read (c->block, c->sector, c->data);
               c->loading = false;
               c->needs_loading = false;
@@ -410,9 +410,14 @@ void cache_read_bytes (struct block *block, block_sector_t sector,
       c->loading = false;
       rw_writer_unlock (&c->l);
     
-      // read_ahead
+      // read-ahead
       c = cache_insert (block, sector + 1);
-      c->loading = true;
+      c->needs_loading = true;
       rw_writer_unlock (&c->l);
+    
+      lock_acquire (&uf_l);
+      num_unread++;
+      cond_broadcast (&unread_files, &uf_l);
+      lock_release (&uf_l);
     }
 } 
