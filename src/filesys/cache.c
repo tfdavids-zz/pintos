@@ -209,8 +209,15 @@ cache_write_dirty (void *aux)
         cond_wait (&dirty_queue_empty, &dirty_queue_lock);
       }
 
+    if (list_empty (&dirty_queue))
+      {
+        lock_release (&dirty_queue_lock);
+        break;
+      }
+
     struct list_elem *e;
     struct cache_entry *c;
+
     for (e = list_pop_front (&dirty_queue); !list_empty (&dirty_queue);
       e = list_pop_front (&dirty_queue))
       {
