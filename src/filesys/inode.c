@@ -163,7 +163,7 @@ byte_to_sector (const struct inode *inode, off_t pos)
 /* List of open inodes, so that opening a single inode twice
    returns the same `struct inode'. */
 static struct list open_inodes;
-static struct rw rw_l;
+static struct rw_lock rw_l;
 
 
 /* Initializes the inode module. */
@@ -254,8 +254,8 @@ inode_open (block_sector_t sector)
       inode = list_entry (e, struct inode, elem);
       if (inode->sector == sector) 
         {
-          rw_reader_unlock (&rw_l);
           inode_reopen (inode);
+          rw_reader_unlock (&rw_l);
           return inode; 
         }
     }
@@ -268,12 +268,12 @@ inode_open (block_sector_t sector)
 
   /* Initialize. */
   rw_writer_lock (&rw_l);
-  list_push_front (&open_inodes, &inode->elem);
   inode->sector = sector;
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
   lock_init(&inode->lock);
+  list_push_front (&open_inodes, &inode->elem);
   rw_writer_unlock (&rw_l);
 
   return inode;
@@ -324,11 +324,11 @@ inode_close (struct inode *inode)
     return;
   
   /* Release resources if this was the last opener. */
+  rw_writer_lock (&rw_l);
   lock_acquire (&inode->lock);
   if (--inode->open_cnt == 0)
     {
       /* Remove from inode list and release lock. */
-      rw_writer_lock (&rw_l);
       list_remove (&inode->elem);
       rw_writer_unlock (&rw_l);
  
@@ -343,14 +343,14 @@ inode_close (struct inode *inode)
           free_map_release (inode->sector, 1);
           free (disk_inode);
         }
-      lock_release (&inode->lock); /* TODO: This is race-y. */
+      lock_release (&inode->lock);
       free (inode); 
     }
   else
     {
+      rw_writer_unlock (&rw_l);
       lock_release (&inode->lock);
     }
-    
 }
 
 /* Marks INODE to be deleted when it is closed by the last caller who

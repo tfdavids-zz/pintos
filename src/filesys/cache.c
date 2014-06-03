@@ -11,7 +11,7 @@
 #define NUM_CACHE_BLOCKS 64
 
 static struct list cache;
-static struct rw cache_lock; // used for metadata
+static struct rw_lock cache_lock; // used for metadata
 
 struct cache_entry
 {
@@ -24,7 +24,7 @@ struct cache_entry
   bool dirty;
   bool writing_dirty; // if we're in the process of writing to disk
   char data[BLOCK_SECTOR_SIZE];
-  struct rw l; // used for working with data[]
+  struct rw_lock l; // used for working with data[]
 };
 
 void cache_write_dirty (struct cache_entry *c);

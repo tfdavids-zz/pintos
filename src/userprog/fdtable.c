@@ -4,9 +4,10 @@
 #include "userprog/fdtable.h"
 #include "threads/thread.h"
 #include "threads/malloc.h"
+#include "filesys/directory.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
-#include "filesys/directory.h"
+#include "filesys/inode.h"
 
 /* Expand by a constant factor each time. */
 #define FD_EXPAND_FACTOR 2

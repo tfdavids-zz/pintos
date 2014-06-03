@@ -429,57 +429,63 @@ cond_broadcast (struct condition *cond, struct lock *lock)
 }
 
 /* Reader Writer Locks */
-void
-rw_init (struct rw *lock)
+void rw_init (struct rw_lock *lock)
 {
+  ASSERT (lock != NULL);
+
   lock_init (&lock->l);
-  cond_init (&lock->can_read);
-  cond_init (&lock->can_write);
-  lock->num_readers = 0;
-  lock->num_writers = 0;
-  lock->num_waiting_writers = 0;
+  cond_init (&lock->c_r);
+  cond_init (&lock->c_w);
+  lock->num_writers_waiting = lock->num_reading = 0;
+  lock->writing = false;
 }
 
-void
-rw_writer_lock (struct rw *lock)
+void rw_reader_lock (struct rw_lock *lock)
 {
   lock_acquire (&lock->l);
-  lock->num_waiting_writers++;
-  while (lock->num_readers > 0 || lock->num_writers > 0)
-    cond_wait (&lock->can_write, &lock->l);
-  lock->num_waiting_writers--;
-  lock->num_writers++;
+  while (lock->num_writers_waiting > 0 || lock->writing)
+    {
+      cond_wait (&lock->c_r, &lock->l);
+    }
+  lock->num_reading++;
   lock_release (&lock->l);
 }
 
-void
-rw_writer_unlock (struct rw *lock)
+void rw_reader_unlock (struct rw_lock *lock)
 {
   lock_acquire (&lock->l);
-  lock->num_writers--;
-  if (lock->num_waiting_writers > 0)
-    cond_signal (&lock->can_write, &lock->l);
+  lock->num_reading--;
+  if (lock->num_reading == 0)
+    {
+      cond_signal (&lock->c_w, &lock->l);
+    }
+  lock_release (&lock->l);
+}
+
+void rw_writer_lock (struct rw_lock *lock)
+{
+  lock_acquire (&lock->l);
+  lock->num_writers_waiting++;
+  while (lock->num_reading > 0 || lock->writing)
+    {
+      cond_wait (&lock->c_w, &lock->l);
+    }
+  lock->num_writers_waiting--;
+  lock->writing = true;
+  lock_release (&lock->l);
+}
+
+void rw_writer_unlock (struct rw_lock *lock)
+{
+  lock_acquire (&lock->l);
+  lock->writing = false;
+  if (lock->num_writers_waiting == 0)
+    {
+      cond_broadcast (&lock->c_r, &lock->l);
+    }
   else
-    cond_broadcast (&lock->can_read, &lock->l);
-  lock_release (&lock->l);
-}
-
-void
-rw_reader_lock (struct rw *lock)
-{
-  lock_acquire (&lock->l);
-  while (lock->num_writers > 0 || lock->num_waiting_writers > 0)
-    cond_wait (&lock->can_read, &lock->l);
-  lock->num_readers++;
-  lock_release (&lock->l);
-}
-
-void
-rw_reader_unlock (struct rw *lock)
-{
-  lock_acquire (&lock->l);
-  lock->num_readers--;
-  if (lock->num_readers == 0)
-    cond_signal (&lock->can_write, &lock->l);
+    {
+      cond_signal (&lock->c_w, &lock->l);
+    }
   lock_release (&lock->l);
 }
