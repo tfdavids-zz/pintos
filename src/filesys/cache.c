@@ -209,12 +209,12 @@ cache_write_dirty (void *aux)
         cond_wait (&dirty_queue_empty, &dirty_queue_lock);
       }
 
-    if (list_empty (&dirty_queue))
-      {
-        // running must be false, so quit
-        lock_release (&dirty_queue_lock);
-        break;
-      }
+    // if (list_empty (&dirty_queue))
+    //   {
+    //     // running must be false, so quit
+    //     lock_release (&dirty_queue_lock);
+    //     break;
+    //   }
 
     struct list_elem *e;
     struct cache_entry *c;
@@ -382,13 +382,13 @@ void cache_flush (void)
   /* Force read-ahead and write-behind to die. */
   running = false;
 
-  lock_acquire (&read_queue_lock);
-  cond_signal (&read_queue_empty, &read_queue_lock);
-  lock_release (&read_queue_lock);
-
-  lock_acquire (&dirty_queue_lock);
-  cond_signal (&dirty_queue_empty, &dirty_queue_lock);
-  lock_release (&dirty_queue_lock);
+  // lock_acquire (&read_queue_lock);
+  // cond_signal (&read_queue_empty, &read_queue_lock);
+  // lock_release (&read_queue_lock);
+  //
+  // lock_acquire (&dirty_queue_lock);
+  // cond_signal (&dirty_queue_empty, &dirty_queue_lock);
+  // lock_release (&dirty_queue_lock);
 
   /* Now clear the cache. */
   while (list_size (&cache) > 0)
