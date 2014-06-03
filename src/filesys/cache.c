@@ -10,67 +10,6 @@
 
 #define NUM_CACHE_BLOCKS 64
 
-/* reader-writer locks */
-
-struct rw
-{
-  int num_readers, num_writers, num_waiting_writers;
-  struct lock l;
-  struct condition can_read, can_write;
-};
-
-void rw_init (struct rw *lock)
-{
-  lock_init (&lock->l);
-  cond_init (&lock->can_read);
-  cond_init (&lock->can_write);
-  lock->num_readers = 0;
-  lock->num_writers = 0;
-  lock->num_waiting_writers = 0;
-}
-
-void rw_writer_lock (struct rw *lock)
-{
-  lock_acquire (&lock->l);
-  lock->num_waiting_writers++;
-  while (lock->num_readers > 0 || lock->num_writers > 0)
-    cond_wait (&lock->can_write, &lock->l);
-  lock->num_waiting_writers--;
-  lock->num_writers++;
-  lock_release (&lock->l);
-}
-
-void rw_writer_unlock (struct rw *lock)
-{
-  lock_acquire (&lock->l);
-  lock->num_writers--;
-  if (lock->num_waiting_writers > 0)
-    cond_signal (&lock->can_write, &lock->l);
-  else
-    cond_broadcast (&lock->can_read, &lock->l);
-  lock_release (&lock->l);
-}
-
-void rw_reader_lock (struct rw *lock)
-{
-  lock_acquire (&lock->l);
-  while (lock->num_writers > 0 || lock->num_waiting_writers > 0)
-    cond_wait (&lock->can_read, &lock->l);
-  lock->num_readers++;
-  lock_release (&lock->l);
-}
-
-void rw_reader_unlock (struct rw *lock)
-{
-  lock_acquire (&lock->l);
-  lock->num_readers--;
-  if (lock->num_readers == 0)
-    cond_signal (&lock->can_write, &lock->l);
-  lock_release (&lock->l);
-}
-
-/* end read-writer locks */
-
 static struct list cache;
 static struct rw cache_lock; // used for metadata
 
