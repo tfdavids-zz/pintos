@@ -277,11 +277,16 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
               /* TODO: Acquire a writer lock? */
               if (c->dirty)
                 {
+                  /*
                   c->writing_dirty = true;
                   lock_acquire (&dirty_queue_lock);
                   list_push_back (&dirty_queue, &c->d_elem);
                   cond_signal (&dirty_queue_empty, &dirty_queue_lock);
                   lock_release (&dirty_queue_lock);
+                  */
+                  rw_reader_lock (&c->l);
+                  block_write (c->block, c->sector, c->data);
+                  rw_reader_unlock (&c->l);
                 }
               c->accessed = false;
             }
