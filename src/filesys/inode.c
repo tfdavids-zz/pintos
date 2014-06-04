@@ -181,11 +181,11 @@ inode_close (struct inode *inode)
       /* Deallocate blocks if removed. */
       if (inode->removed) 
         {
-          free_map_release (inode->sector, 1);
           struct inode_disk disk_inode;
           cache_read (fs_device, inode->sector, &disk_inode);
           free_map_release (disk_inode.start,
                             bytes_to_sectors (disk_inode.length)); 
+          free_map_release (inode->sector, 1);
         }
 
       free (inode); 
