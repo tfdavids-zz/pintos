@@ -636,6 +636,12 @@ inode_grow_indir_blocks (struct inode_disk *disk_inode,
   size_t added_sectors = 0;
   bool success = false;
   struct indir_block_disk *indir_block;
+
+  /* No room in the indirect blook */
+  if (next_block >= DIRECT_BLOCKS + PTRS_PER_INDIR_BLOCK)
+    {
+      return true;
+    }
   indir_block = calloc_wrapper (1, sizeof *indir_block);
   
   /* Create an indir block if necessary */
@@ -682,6 +688,11 @@ inode_grow_doubly_indir_blocks (struct inode_disk *disk_inode,
   size_t added_sectors = 0;
   bool success = false;
 
+  if (next_block >= DIRECT_BLOCKS + PTRS_PER_INDIR_BLOCK +
+      PTRS_PER_INDIR_BLOCK * PTRS_PER_INDIR_BLOCK)
+    {
+      return true;
+    }
   struct indir_block_disk *indir_block;
   struct indir_block_disk *doubly_indir_block;
 
