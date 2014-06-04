@@ -60,6 +60,11 @@ Robert Gasparyan <robertga@stanford.edu>
 >> structure, and what advantages and disadvantages does your
 >> structure have, compared to a multilevel index?
 
+Yes, we used a multilevel index, with 12 direct blocks an indirect block, and a
+doubly indirect block. This approach (which was discussed in class) allows us
+to keep smaller files just in direct blocks, but still allows files to grow to
+much larger than the total file system partition space.
+
 			    SUBDIRECTORIES
 			    ==============
 
@@ -74,6 +79,15 @@ Robert Gasparyan <robertga@stanford.edu>
 >> B2: Describe your code for traversing a user-specified path.  How
 >> do traversals of absolute and relative paths differ?
 
+We use the method dir_resolve_path to traverse a user-specified path and locate
+the given file or directory. This method takes in a string indicating a path
+and a pointer to a struct dir *, which is where the bottom-most directory will
+be stored. If there is a leading slash (indicating an absolute path), or if the
+working directory is NULL, we open the root directory and start from there.
+Otherwise, we reopen the current working directory and start from there. In
+both cases, we jump through the directories in order until we find the final
+one, then fill the char name[] with the filename.
+
 ---- SYNCHRONIZATION ----
 
 >> B4: How do you prevent races on directory entries?  For example,
@@ -86,10 +100,21 @@ Robert Gasparyan <robertga@stanford.edu>
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
 
+We do not allow a directory to be removed if it is open by a process, or if it
+is in use as a process's current working directory. To prevent this, we group
+both of these together by having a process always have its current working
+directory open. This way, we can just check whether any process has a directory
+open before removing it.
+
 ---- RATIONALE ----
 
 >> B6: Explain why you chose to represent the current directory of a
 >> process the way you did.
+
+We chose to represent the current directory like this because it simplifies the
+logic for removing directories (discussed in B5). While it might be simpler or
+more efficient to just store the inumber of the current working directory, this
+approach makes it easy to check whether we can remove a directory.
 
 			     BUFFER CACHE
 			     ============
