@@ -278,11 +278,12 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
               /* TODO: Acquire a writer lock? */
               if (c->dirty)
                 {
-                  c->writing_dirty = true;
-                  lock_acquire (&dirty_queue_lock);
-                  list_push_back (&dirty_queue, &c->d_elem);
-                  cond_signal (&dirty_queue_empty, &dirty_queue_lock);
-                  lock_release (&dirty_queue_lock);
+                  ASSERT (false);
+                  // c->writing_dirty = true;
+                  // lock_acquire (&dirty_queue_lock);
+                  // list_push_back (&dirty_queue, &c->d_elem);
+                  // cond_signal (&dirty_queue_empty, &dirty_queue_lock);
+                  // lock_release (&dirty_queue_lock);
                 }
               c->accessed = false;
             }
@@ -327,9 +328,9 @@ void cache_flush (void)
   // cond_signal (&read_queue_empty, &read_queue_lock);
   // lock_release (&read_queue_lock);
   //
-  lock_acquire (&dirty_queue_lock);
-  cond_signal (&dirty_queue_empty, &dirty_queue_lock);
-  lock_release (&dirty_queue_lock);
+  // lock_acquire (&dirty_queue_lock);
+  // cond_signal (&dirty_queue_empty, &dirty_queue_lock);
+  // lock_release (&dirty_queue_lock);
 
   /* Now clear the cache. */
   while (list_size (&cache) > 0)
