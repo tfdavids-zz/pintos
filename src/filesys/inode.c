@@ -207,6 +207,9 @@ inode_remove (struct inode *inode)
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) 
 {
+  struct inode_disk disk_inode;
+  cache_read (fs_device, inode->sector, &disk_inode);
+  printf ("reading inode at sector %d (length = %d, start = %d)\n", inode->sector, disk_inode.length, disk_inode.start);
   uint8_t *buffer = buffer_;
   off_t bytes_read = 0;
 
@@ -225,6 +228,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
         break;
+      printf ("reading: sector = %d, sector_ofs = %d, chunk_size = %d\n", sector_idx, sector_ofs, chunk_size);
 
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
@@ -255,6 +259,7 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
 {
+  printf ("writing inode at sector %d\n", inode->sector);
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
 
