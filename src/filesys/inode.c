@@ -381,7 +381,7 @@ inode_is_removed (struct inode *inode)
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 {
-  printf ("reading inode at sector %d\n", inode->sector);
+  //printf ("reading inode at sector %d\n", inode->sector);
   lock_acquire (&inode->lock);
 
   uint8_t *buffer = buffer_;
@@ -389,7 +389,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 
   while (size > 0)
     {
-      printf ("read starting . . .\n");
+      //printf ("read starting . . .\n");
       /* Disk sector to read, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
@@ -402,7 +402,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
         break;
-      printf ("reading: sector = %d, sector_ofs = %d, chunk_size = %d\n", sector_idx, sector_ofs, chunk_size);
+      //printf ("reading: sector = %d, sector_ofs = %d, chunk_size = %d\n", sector_idx, sector_ofs, chunk_size);
 
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
@@ -414,7 +414,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
           cache_read_bytes (fs_device, sector_idx, sector_ofs, chunk_size,
                             buffer + bytes_read);
         }
-      printf ("finished reading sector %d\n", sector_idx);
+      //printf ("finished reading sector %d\n", sector_idx);
 
       /* Advance. */
       size -= chunk_size;
@@ -422,7 +422,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       bytes_read += chunk_size;
     }
   lock_release (&inode->lock);
-  printf ("done!\n");
+  //printf ("done!\n");
 
   return bytes_read;
 }
@@ -435,7 +435,7 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset)
 {
-  printf ("writing inode at sector %d\n", inode->sector);
+  //printf ("writing inode at sector %d\n", inode->sector);
 
   lock_acquire (&inode->lock);
   const uint8_t *buffer = buffer_;

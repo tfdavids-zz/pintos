@@ -73,7 +73,7 @@ void cache_init (void)
 
 void cache_read (struct block *block, block_sector_t sector, void *buffer)
 {
-  printf ("reading block %#x, sector %d\n", block, sector);
+  //printf ("reading block %#x, sector %d\n", block, sector);
   /* If the block is already cached, simply read its entry. */
   struct cache_entry *c = cache_get_lock (block, sector, C_READ);
 
@@ -94,21 +94,23 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
 
   // read-ahead
-  printf ("reading ahead block %#x, sector %d\n", block, sector + 1);
-  c = cache_insert_write_lock (block, sector+1);
-  if (c == NULL)
-    return;
-  rw_writer_unlock (&c->l);
+  //printf ("reading ahead block %#x, sector %d\n", block, sector + 1);
 
-  lock_acquire (&read_queue_lock);
-  list_push_back (&read_queue, &c->r_elem);
-  cond_signal (&read_queue_empty, &read_queue_lock);
-  lock_release (&read_queue_lock);
+  //c = cache_insert_write_lock (block, sector+1);
+  //ASSERT (sector + 1 < 4096);
+  //if (c == NULL)
+  //  return;
+  //rw_writer_unlock (&c->l);
+
+  //lock_acquire (&read_queue_lock);
+  //list_push_back (&read_queue, &c->r_elem);
+  //cond_signal (&read_queue_empty, &read_queue_lock);
+  //lock_release (&read_queue_lock);
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
 {
-  printf ("writing block %#x, sector %d\n", block, sector);
+  //printf ("writing block %#x, sector %d\n", block, sector);
 
   // check if cache contains block and sector
   struct cache_entry *c = cache_get_lock (block, sector, C_WRITE);
@@ -139,36 +141,39 @@ cache_write_dirty (void *aux)
   thread_current ()->background = true;
 
   while (running)
-  {
-    lock_acquire (&dirty_queue_lock);
-    while (running && list_empty (&dirty_queue))
-      {
-        cond_wait (&dirty_queue_empty, &dirty_queue_lock);
-      }
+    {
+      lock_acquire (&dirty_queue_lock);
+      while (running && list_empty (&dirty_queue))
+        {
+          cond_wait (&dirty_queue_empty, &dirty_queue_lock);
+        }
 
-    if (list_empty (&dirty_queue))
-      {
-        // running must be false, so quit
-        lock_release (&dirty_queue_lock);
-        break;
-      }
+      if (list_empty (&dirty_queue))
+        {
+          // running must be false, so quit
+          ASSERT (!running);
+          lock_release (&dirty_queue_lock);
+          break;
+        }
 
-    struct list_elem *e;
-    struct cache_entry *c;
+      struct list_elem *e;
+      struct cache_entry *c;
 
-    for (e = list_pop_front (&dirty_queue); !list_empty (&dirty_queue);
-      e = list_pop_front (&dirty_queue))
-      {
-        c = list_entry (e, struct cache_entry, d_elem);
-        rw_reader_lock (&c->l);
-        ASSERT (c->dirty);
-        block_write (c->block, c->sector, c->data);
-        c->dirty = false; /* TODO: Should hold writer lock? */
-        c->writing_dirty = false;
-        rw_reader_unlock (&c->l);
-      }
-    lock_release (&dirty_queue_lock);
-  }
+      rw_reader_lock (&cache_lock);
+      for (e = list_pop_front (&dirty_queue); !list_empty (&dirty_queue);
+        e = list_pop_front (&dirty_queue))
+        {
+          c = list_entry (e, struct cache_entry, d_elem);
+          rw_reader_lock (&c->l);
+          ASSERT (c->dirty);
+          block_write (c->block, c->sector, c->data);
+          c->dirty = false; /* TODO: Should hold writer lock? */
+          c->writing_dirty = false;
+          rw_reader_unlock (&c->l);
+        }
+      rw_reader_unlock (&cache_lock);
+      lock_release (&dirty_queue_lock);
+    }
 }
 
 /* TODO */
@@ -180,26 +185,36 @@ cache_read_ahead (void *aux)
   thread_current ()->background = true;
 
   while (running)
-  {
-    lock_acquire (&read_queue_lock);
-    while (running && list_empty (&read_queue))
-      {
-        cond_wait (&read_queue_empty, &read_queue_lock);
-      }
+    {
+      lock_acquire (&read_queue_lock);
+      while (running && list_empty (&read_queue))
+        {
+          cond_wait (&read_queue_empty, &read_queue_lock);
+        }
 
-    struct list_elem *e;
-    struct cache_entry *c;
-    for (e = list_pop_front (&read_queue); !list_empty (&read_queue);
-      e = list_pop_front (&read_queue))
-      {
-        c = list_entry (e, struct cache_entry, r_elem);
-        rw_writer_lock (&c->l);
-        block_read (c->block, c->sector, c->data);
-        c->loading = false;
-        rw_writer_unlock (&c->l);
-      }
-    lock_release (&read_queue_lock);
-  }
+      if (list_empty (&read_queue))
+        {
+          ASSERT (!running);
+          lock_release (&read_queue_lock);
+          break;
+        }
+
+      rw_reader_lock (&cache_lock);
+
+      struct list_elem *e;
+      struct cache_entry *c;
+      for (e = list_pop_front (&read_queue); !list_empty (&read_queue);
+        e = list_pop_front (&read_queue))
+        {
+          c = list_entry (e, struct cache_entry, r_elem);
+          rw_writer_lock (&c->l);
+          block_read (c->block, c->sector, c->data);
+          c->loading = false;
+          rw_writer_unlock (&c->l);
+        }
+      rw_reader_unlock (&cache_lock);
+      lock_release (&read_queue_lock);
+    }
 }
 
 // Retrieves a cache entry, with either its reader or writer lock held, as
@@ -263,7 +278,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
       /* TODO: Synchronization. Acquire a reader lock? */
       c = list_entry (e, struct cache_entry, elem);
 
-      while (c->loading || c->accessed || c->dirty)
+      while (c->loading || c->accessed || c->dirty || c->writing_dirty)
         {
           if (c->writing_dirty || c->loading)
             {
@@ -277,16 +292,11 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
               /* TODO: Acquire a writer lock? */
               if (c->dirty)
                 {
-                  /*
                   c->writing_dirty = true;
                   lock_acquire (&dirty_queue_lock);
                   list_push_back (&dirty_queue, &c->d_elem);
                   cond_signal (&dirty_queue_empty, &dirty_queue_lock);
                   lock_release (&dirty_queue_lock);
-                  */
-                  rw_reader_lock (&c->l);
-                  block_write (c->block, c->sector, c->data);
-                  rw_reader_unlock (&c->l);
                 }
               c->accessed = false;
             }
