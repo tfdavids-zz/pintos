@@ -139,7 +139,7 @@ void cache_init (void)
 
 void cache_read (struct block *block, block_sector_t sector, void *buffer)
 {
-
+  printf ("reading block %#x, sector %d\n", block, sector);
   /* If the block is already cached, simply read its entry. */
   struct cache_entry *c = cache_get_lock (block, sector, C_READ);
   if (c != NULL)
@@ -159,19 +159,21 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
 
   // read-ahead
-  //c = cache_insert_write_lock (block, sector+1);
-  //if (c == NULL)
-  //  return;
-  //rw_writer_unlock (&c->l);
+  printf ("reading ahead block %#x, sector %d\n", block, sector + 1);
+  c = cache_insert_write_lock (block, sector+1);
+  if (c == NULL)
+    return;
+  rw_writer_unlock (&c->l);
 
-  //lock_acquire (&read_queue_lock);
-  //list_push_back (&read_queue, &c->r_elem);
-  //cond_signal (&read_queue_empty, &read_queue_lock);
-  //lock_release (&read_queue_lock);
+  // lock_acquire (&read_queue_lock);
+  // list_push_back (&read_queue, &c->r_elem);
+  // cond_signal (&read_queue_empty, &read_queue_lock);
+  // lock_release (&read_queue_lock);
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
 {
+  printf ("writing block %#x, sector %d\n", block, sector);
 
   // check if cache contains block and sector
   struct cache_entry *c = cache_get_lock (block, sector, C_WRITE);
@@ -305,13 +307,16 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
 
   rw_writer_lock (&cache_lock);
 
-  // for (e = list_begin (&cache); e != list_end (&cache);
-  //      e = list_next (e))
-  //   {
-  //     c = list_entry (e, struct cache_entry, elem);
-  //     if (c->block == block && c->sector == sector)
-  //       return NULL;
-  //   }
+  for (e = list_begin (&cache); e != list_end (&cache);
+       e = list_next (e))
+    {
+      c = list_entry (e, struct cache_entry, elem);
+      if (c->block == block && c->sector == sector)
+        {
+          rw_writer_unlock (&cache_lock);
+          return NULL;
+        }
+    }
 
   if (cache_full || list_size (&cache) >= NUM_CACHE_BLOCKS)
     {
