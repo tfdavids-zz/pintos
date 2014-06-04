@@ -189,14 +189,7 @@ process_exit (void)
 
   /* Close all open files, including the executable, and free 
    * the fd table. */
-  size_t i;
-  for (i = 0; i <= cur->fd_table_tail_idx; i++)
-    {
-      if (cur->fd_table[i] != NULL)
-      {
-        fd_table_close (i);
-      }
-    }
+  fd_table_dispose ();
   free (cur->fd_table);
   file_close (cur->executable);
 

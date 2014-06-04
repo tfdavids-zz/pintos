@@ -142,6 +142,7 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   printf ("reading block %#x, sector %d\n", block, sector);
   /* If the block is already cached, simply read its entry. */
   struct cache_entry *c = cache_get_lock (block, sector, C_READ);
+
   if (c != NULL)
     {
       memcpy (buffer, c->data, BLOCK_SECTOR_SIZE);

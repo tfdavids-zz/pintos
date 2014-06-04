@@ -29,7 +29,7 @@ static void sys_wait (struct intr_frame *f, pid_t pid);
 static void sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size);
 static void sys_remove (struct intr_frame *f, const char *file);
-static void sys_open (struct intr_frame *f, const char *file);
+static void sys_open (struct intr_frame *f, const char *path);
 static void sys_filesize (struct intr_frame *f, int fd);
 static void sys_read (struct intr_frame *f, int fd, void *buffer,
   unsigned length);
@@ -38,6 +38,13 @@ static void sys_write (struct intr_frame *f, int fd, const void *buffer,
 static void sys_seek (struct intr_frame *f, int fd, unsigned position);
 static void sys_tell (struct intr_frame *f, int fd);
 static void sys_close (struct intr_frame *f, int fd);
+static void sys_mkdir (struct intr_frame *f, const char *dir);
+static void sys_chdir (struct intr_frame *f, const char *dir);
+static void sys_inumber (struct intr_frame *f, int fd);
+static void sys_readdir (struct intr_frame *f,
+  int fd, char name[READDIR_MAX_LEN + 1]);
+static void sys_isdir (struct intr_frame *f, int fd);
+
 static bool is_valid_ptr (const void *ptr);
 static bool is_valid_range (const void *ptr, size_t len);
 static bool is_valid_string (const char *ptr);
@@ -145,10 +152,19 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_MMAP:
       case SYS_MUNMAP:
       case SYS_CHDIR:
+        sys_chdir (f, (const char *)args[0]);
+        break;
       case SYS_MKDIR:
+        sys_mkdir (f, (const char *)args[0]);
+        break;
       case SYS_READDIR:
+        sys_readdir (f, (int)args[0], (char *)args[1]);
+        break;
       case SYS_ISDIR:
+        sys_isdir (f, (int)args[0]);
       case SYS_INUMBER:
+        sys_inumber (f, (int)args[0]);
+        break;
       default:
         exit_on (f, true); /* Unimplemented syscall --
                               force the thread to exit. */
@@ -266,11 +282,11 @@ sys_remove (struct intr_frame *f, const char *file)
 }
 
 static void
-sys_open (struct intr_frame *f, const char *file)
+sys_open (struct intr_frame *f, const char *path)
 {
-  exit_on (f, !is_valid_string (file));
+  exit_on (f, !is_valid_string (path));
   lock_acquire (&filesys_lock);
-  f->eax = fd_table_open (file);
+  f->eax = fd_table_open (path);
   lock_release (&filesys_lock);
 }
 
@@ -339,6 +355,12 @@ sys_write (struct intr_frame *f, int fd, const void *buffer,
       f->eax = length;
     }
 
+  /* Ensure that an attempt to write a directory is not made. */
+  else if (!fd_table_is_file (fd))
+    {
+      f->eax = -1;
+    }
+
   /* Otherwise, fetch the file and write to it. */
   else
     {
@@ -387,5 +409,67 @@ sys_close (struct intr_frame *f, int fd)
 {
   lock_acquire (&filesys_lock);
   exit_on_file (f, !fd_table_close (fd));
+  lock_release (&filesys_lock);
+}
+
+static void
+sys_mkdir (struct intr_frame *f, const char *dir)
+{
+  exit_on (f, !is_valid_string (dir));
+  lock_acquire (&filesys_lock);
+  f->eax = filesys_mkdir (dir);
+  lock_release (&filesys_lock);
+}
+
+static void
+sys_chdir (struct intr_frame *f, const char *dir)
+{
+  exit_on (f, !is_valid_string (dir));
+  lock_acquire (&filesys_lock);
+  struct dir *d = filesys_open_dir (dir);
+  if (d == NULL)
+    {
+      f->eax = false;
+    }
+  else
+    {
+      if (thread_current ()->working_dir != NULL)
+        {
+          dir_close (thread_current ()->working_dir);
+        }
+      thread_current ()->working_dir = d;
+      f->eax = true;
+    }
+  lock_release (&filesys_lock);
+}
+
+static void
+sys_inumber (struct intr_frame *f, int fd)
+{
+  lock_acquire (&filesys_lock);
+  f->eax = fd_table_inumber (fd);
+  lock_release  (&filesys_lock);
+}
+
+static void sys_readdir (struct intr_frame *f,
+  int fd, char name[READDIR_MAX_LEN + 1])
+{
+  lock_acquire (&filesys_lock);
+  struct dir *dir = fd_table_get_dir (fd);
+  if (dir == NULL)
+    {
+      f->eax = false;
+    }
+  else
+    {
+      f->eax = dir_readdir (dir, name);
+    }
+  lock_release (&filesys_lock);
+}
+
+static void sys_isdir (struct intr_frame *f, int fd)
+{
+  lock_acquire (&filesys_lock);
+  f->eax = !fd_table_is_file (fd);
   lock_release (&filesys_lock);
 }

@@ -16,6 +16,7 @@
 #include "threads/malloc.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "filesys/filesys.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -282,7 +283,7 @@ thread_create (const char *name, int priority,
 
       /* Set up the file descriptor table. */
       t->fd_table_size = INIT_FDTABE_SIZE;
-      t->fd_table = calloc (t->fd_table_size, sizeof (struct file *));
+      t->fd_table = calloc (t->fd_table_size, sizeof (struct fd_entry *));
       if (t->fd_table == NULL)
         {
           return TID_ERROR;
@@ -711,6 +712,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->eff_priority = priority;
   t->magic = THREAD_MAGIC;
   t->exit_status = -1; /* By default, assume error. */
+  t->working_dir = NULL; /* NULL denotes root here. */
   if (thread_mlfqs)
     {
       if (t == initial_thread)
