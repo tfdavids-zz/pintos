@@ -166,10 +166,10 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
     return;
   rw_writer_unlock (&c->l);
 
-  // lock_acquire (&read_queue_lock);
-  // list_push_back (&read_queue, &c->r_elem);
-  // cond_signal (&read_queue_empty, &read_queue_lock);
-  // lock_release (&read_queue_lock);
+  lock_acquire (&read_queue_lock);
+  list_push_back (&read_queue, &c->r_elem);
+  cond_signal (&read_queue_empty, &read_queue_lock);
+  lock_release (&read_queue_lock);
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
