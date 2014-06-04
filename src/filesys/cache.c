@@ -14,73 +14,8 @@
 #define C_READ 1
 #define C_WRITE 2
 
-/* reader-writer locks */
-
-struct rw
-{
-  int num_readers, num_writers, num_waiting_writers;
-  struct lock l;
-  struct condition can_read, can_write;
-};
-
-void rw_init (struct rw *lock)
-{
-  lock_init (&lock->l);
-  cond_init (&lock->can_read);
-  cond_init (&lock->can_write);
-  lock->num_readers = 0;
-  lock->num_writers = 0;
-  lock->num_waiting_writers = 0;
-}
-
-void rw_writer_lock (struct rw *lock)
-{
-  //printf ("waiting to write %#x\n", lock);
-  lock_acquire (&lock->l);
-  lock->num_waiting_writers++;
-  while (lock->num_readers > 0 || lock->num_writers > 0)
-    cond_wait (&lock->can_write, &lock->l);
-  lock->num_waiting_writers--;
-  lock->num_writers++;
-  lock_release (&lock->l);
-}
-
-void rw_writer_unlock (struct rw *lock)
-{
-  //printf ("write-unlocking %#x\n", lock);
-  lock_acquire (&lock->l);
-  lock->num_writers--;
-  if (lock->num_waiting_writers > 0)
-    cond_signal (&lock->can_write, &lock->l);
-  else
-    cond_broadcast (&lock->can_read, &lock->l);
-  lock_release (&lock->l);
-}
-
-void rw_reader_lock (struct rw *lock)
-{
-  //printf ("waiting to read %#x\n", lock);
-  lock_acquire (&lock->l);
-  while (lock->num_writers > 0 || lock->num_waiting_writers > 0)
-    cond_wait (&lock->can_read, &lock->l);
-  lock->num_readers++;
-  lock_release (&lock->l);
-}
-
-void rw_reader_unlock (struct rw *lock)
-{
-  //printf ("read-unlocking %#x\n", lock);
-  lock_acquire (&lock->l);
-  lock->num_readers--;
-  if (lock->num_readers == 0)
-    cond_signal (&lock->can_write, &lock->l);
-  lock_release (&lock->l);
-}
-
-/* end read-writer locks */
-
 static struct list cache;
-static struct rw cache_lock; // used for metadata
+static struct rw_lock cache_lock; // used for metadata
 static bool cache_full;
 
 static bool running; /* For communicating with background threads. */
@@ -109,7 +44,7 @@ struct cache_entry
   bool writing_dirty;           /* True if writing to disk. */
   bool should_read_ahead;
   char data[BLOCK_SECTOR_SIZE]; /* The cached data. */
-  struct rw l;                  /* To synchronize access to the entry. */
+  struct rw_lock l;                  /* To synchronize access to the entry. */
 };
 
 void cache_write_dirty (void *aux);
@@ -474,7 +409,7 @@ void cache_read_bytes (struct block *block, block_sector_t sector,
 }
 
 void cache_write_bytes (struct block *block, block_sector_t sector,
-                        int sector_ofs, int chunk_size, void *buffer)
+                        int sector_ofs, int chunk_size, const void *buffer)
 {
   struct cache_entry *c = cache_get_lock (block, sector, C_WRITE);
   if (c != NULL)
