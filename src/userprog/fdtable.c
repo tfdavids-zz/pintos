@@ -180,7 +180,8 @@ int fd_table_inumber (int fd)
 }
 
 /* Returns true iff a file is indexed by fd. */
-bool fd_table_is_file (int fd)
+bool
+fd_table_is_file (int fd)
 {
   if (!fd_table_is_valid_fd (fd))
     {

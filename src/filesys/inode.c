@@ -196,6 +196,7 @@ inode_create (block_sector_t sector, off_t length, uint32_t type)
   disk_inode->length = 0;
   disk_inode->sectors = 0;
   disk_inode->magic = INODE_MAGIC;
+  disk_inode->type = type;
   block_write (fs_device, sector, disk_inode);
 
   /* Expand inode to given length */
@@ -207,11 +208,10 @@ inode_create (block_sector_t sector, off_t length, uint32_t type)
     }
   else
     {
-      size_t sectors = bytes_to_sectors (length);
       success = true;
+      disk_inode->sectors = bytes_to_sectors (length);
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
-      disk_inode->type = type;
       /*TODO: this should be modified to work with indexing */
       block_write (fs_device, sector, disk_inode);
       /* TODO: What is this code and why is it commented out? */
@@ -643,7 +643,7 @@ inode_grow_indir_blocks (struct inode_disk *disk_inode,
       return true;
     }
   indir_block = calloc_wrapper (1, sizeof *indir_block);
-  
+
   /* Create an indir block if necessary */
   if (next_block == INDIR_BLOCK_INDEX)
     {
@@ -658,7 +658,7 @@ inode_grow_indir_blocks (struct inode_disk *disk_inode,
   /* Read indirect block */
   block_read (fs_device, disk_inode->block_ptrs[INDIR_BLOCK_INDEX],
               indir_block);
-  
+
   added_sectors = inode_grow_indir_block (indir_block,
                                           indir_off,
                                           new_sectors);
@@ -688,6 +688,7 @@ inode_grow_doubly_indir_blocks (struct inode_disk *disk_inode,
   size_t added_sectors = 0;
   bool success = false;
 
+  /* No room in the doubly indirect block */
   if (next_block >= DIRECT_BLOCKS + PTRS_PER_INDIR_BLOCK +
       PTRS_PER_INDIR_BLOCK * PTRS_PER_INDIR_BLOCK)
     {

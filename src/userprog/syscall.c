@@ -157,6 +157,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
       case SYS_ISDIR:
         sys_isdir (f, (int)args[0]);
+        break;
       case SYS_INUMBER:
         sys_inumber (f, (int)args[0]);
         break;
