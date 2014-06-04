@@ -20,21 +20,21 @@ static bool cache_full;
 
 static bool running; /* For communicating with background threads. */
 
-/* For writing dirty cache entries encountered during eviction. */
-static struct list dirty_queue;
-static struct condition dirty_queue_empty;
-static struct lock dirty_queue_lock;
-
-/* For reading ahead. */
-static struct list read_queue;
-static struct condition read_queue_empty;
-static struct lock read_queue_lock;
+// /* For writing dirty cache entries encountered during eviction. */
+// static struct list dirty_queue;
+// static struct condition dirty_queue_empty;
+// static struct lock dirty_queue_lock;
+//
+// /* For reading ahead. */
+// static struct list read_queue;
+// static struct condition read_queue_empty;
+// static struct lock read_queue_lock;
 
 struct cache_entry
 {
   struct list_elem elem;   /* For the cache list. */
-  struct list_elem d_elem; /* For the dirty list. */
-  struct list_elem r_elem; /* For the read-ahead list. */
+  // struct list_elem d_elem; /* For the dirty list. */
+  // struct list_elem r_elem; /* For the read-ahead list. */
 
   struct block *block;
   block_sector_t sector;
@@ -47,13 +47,13 @@ struct cache_entry
   struct rw_lock l;                  /* To synchronize access to the entry. */
 };
 
-void cache_write_dirty (void *aux);
+// void cache_write_dirty (void *aux);
 struct cache_entry *cache_get_lock (struct block *block, block_sector_t sector,
   int lock_type);
 struct cache_entry *cache_insert_write_lock (struct block *block,
   block_sector_t sector);
-void cache_write_periodically (void *aux);
-void cache_read_ahead (void *aux);
+// void cache_write_periodically (void *aux);
+// void cache_read_ahead (void *aux);
 
 void cache_init (void)
 {
@@ -86,7 +86,7 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
   /* Otherwise, create a cache entry for this block. */
   c = cache_insert_write_lock (block, sector);
-  block_read (block, sector, c->data); /* TODO: Synchronize this gracefully. */
+  block_read (block, sector, c->data);
   memcpy (buffer, c->data, BLOCK_SECTOR_SIZE);
   c->loading = false;
   rw_writer_unlock (&c->l);
@@ -124,8 +124,10 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
   /* Otherwise, load it into the cache. */
   c = cache_insert_write_lock (block, sector);
   memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
-  c->dirty = true;
   c->loading = false;
+  c->dirty = true;
+  block_write (block, sector, c->data);
+  c->dirty = false;
   rw_writer_unlock (&c->l);
 }
 
@@ -403,8 +405,6 @@ void cache_read_bytes (struct block *block, block_sector_t sector,
       memcpy (buffer, c->data + sector_ofs, chunk_size);
       c->loading = false;
       rw_writer_unlock (&c->l);
-
-      // TODO: read-ahead
     }
 }
 
@@ -426,6 +426,8 @@ void cache_write_bytes (struct block *block, block_sector_t sector,
       memcpy (c->data + sector_ofs, buffer, chunk_size);
       c->loading = false;
       c->dirty = true;
+      block_write (block, sector, c->data);
+      c->dirty = false;
       rw_writer_unlock (&c->l);
     }
 }
