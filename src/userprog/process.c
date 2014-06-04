@@ -164,20 +164,6 @@ process_exit (void)
 
   printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
 
-  /* Inform this process' parent, if it exists, that we are exiting.
-     Interrupts must be disabled to ensure that the parent does not
-     finish executing after we check for its existence but before we
-     attempt to access its fields. */
-  enum intr_level old_level = intr_disable ();
-  struct thread *parent = thread_lookup (thread_current ()->parent_tid);
-  if (parent)
-    {
-      struct child_state *cs = thread_child_lookup (parent,
-        thread_current ()->tid);
-      sema_up (&cs->sema);
-    }
-  intr_set_level (old_level);
-
   /* Destroy this process' list of children. */
   struct list_elem *e = list_begin (&cur->children);
   while (e != list_end (&cur->children))
@@ -192,6 +178,20 @@ process_exit (void)
   fd_table_dispose ();
   free (cur->fd_table);
   file_close (cur->executable);
+
+  /* Inform this process' parent, if it exists, that we are exiting.
+     Interrupts must be disabled to ensure that the parent does not
+     finish executing after we check for its existence but before we
+     attempt to access its fields. */
+  enum intr_level old_level = intr_disable ();
+  struct thread *parent = thread_lookup (thread_current ()->parent_tid);
+  if (parent)
+    {
+      struct child_state *cs = thread_child_lookup (parent,
+        thread_current ()->tid);
+      sema_up (&cs->sema);
+    }
+  intr_set_level (old_level);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

@@ -379,8 +379,15 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  while ((e = list_begin (&t->lock_list)) != list_end (&t->lock_list))
+    {
+      lock_release (list_entry (e, struct lock, elem));
+    }
+
 #ifdef USERPROG
-  if (!thread_current ()->background)
+  if (!t->background)
     process_exit ();
 #endif
 
@@ -388,8 +395,8 @@ thread_exit (void)
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
-  list_remove (&thread_current ()->allelem);
-  thread_current ()->status = THREAD_DYING;
+  list_remove (&t->allelem);
+  t->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
 }

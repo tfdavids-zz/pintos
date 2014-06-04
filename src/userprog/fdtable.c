@@ -4,9 +4,10 @@
 #include "userprog/fdtable.h"
 #include "threads/thread.h"
 #include "threads/malloc.h"
+#include "filesys/directory.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
-#include "filesys/directory.h"
+#include "filesys/inode.h"
 
 /* Expand by a constant factor each time. */
 #define FD_EXPAND_FACTOR 2
@@ -179,7 +180,8 @@ int fd_table_inumber (int fd)
 }
 
 /* Returns true iff a file is indexed by fd. */
-bool fd_table_is_file (int fd)
+bool
+fd_table_is_file (int fd)
 {
   if (!fd_table_is_valid_fd (fd))
     {

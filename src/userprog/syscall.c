@@ -19,8 +19,6 @@
 static uint8_t syscall_arg_num[] =
   {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1};
 
-struct lock filesys_lock;
-
 static void syscall_handler (struct intr_frame *f);
 static void sys_halt (void) NO_RETURN;
 static void sys_exit (struct intr_frame *f, int status) NO_RETURN;
@@ -73,10 +71,8 @@ exit_on (struct intr_frame *f, bool condition)
 inline void
 exit_on_file (struct intr_frame *f, bool condition)
 {
-  ASSERT (lock_held_by_current_thread (&filesys_lock));
   if (condition)
   {
-    lock_release (&filesys_lock);
     exit_on (f, true);
   }
 }
@@ -85,7 +81,6 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  lock_init (&filesys_lock);
 }
 
 static void
@@ -162,6 +157,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
       case SYS_ISDIR:
         sys_isdir (f, (int)args[0]);
+        break;
       case SYS_INUMBER:
         sys_inumber (f, (int)args[0]);
         break;
@@ -267,37 +263,29 @@ sys_create (struct intr_frame *f, const char *file,
   unsigned initial_size)
 {
   exit_on (f, !is_valid_string (file));
-  lock_acquire (&filesys_lock);
   f->eax = filesys_create (file, initial_size);
-  lock_release (&filesys_lock);
 }
 
 static void
 sys_remove (struct intr_frame *f, const char *file)
 {
   exit_on (f, !is_valid_string (file));
-  lock_acquire (&filesys_lock);
   f->eax = filesys_remove (file);
-  lock_release (&filesys_lock);
 }
 
 static void
 sys_open (struct intr_frame *f, const char *path)
 {
   exit_on (f, !is_valid_string (path));
-  lock_acquire (&filesys_lock);
   f->eax = fd_table_open (path);
-  lock_release (&filesys_lock);
 }
 
 static void
 sys_filesize (struct intr_frame *f, int fd)
 {
-  lock_acquire (&filesys_lock);
   struct file *file = fd_table_get_file (fd);
   exit_on_file (f, file == NULL);
   f->eax = file_length (file);
-  lock_release (&filesys_lock);
 }
 
 static void
@@ -323,7 +311,6 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
     {
       size_t tmp;
       size_t read_bytes = 0;
-      lock_acquire (&filesys_lock);
       struct file *file = fd_table_get_file (fd);
       exit_on_file (f, file == NULL);
       while (read_bytes < length)
@@ -336,7 +323,6 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
             }
           read_bytes += tmp;
         }
-      lock_release (&filesys_lock);
       f->eax = read_bytes;
     }
 }
@@ -366,7 +352,6 @@ sys_write (struct intr_frame *f, int fd, const void *buffer,
     {
       size_t tmp;
       size_t written_bytes = 0;
-      lock_acquire (&filesys_lock);
       struct file *file = fd_table_get_file (fd);
       exit_on_file (f, file == NULL);
       while (written_bytes < length)
@@ -379,7 +364,6 @@ sys_write (struct intr_frame *f, int fd, const void *buffer,
             }
           written_bytes += tmp;
         }
-      lock_release (&filesys_lock);
       f->eax = written_bytes;
     }
 }
@@ -387,45 +371,36 @@ sys_write (struct intr_frame *f, int fd, const void *buffer,
 static void
 sys_seek (struct intr_frame *f, int fd, unsigned position)
 {
-  lock_acquire (&filesys_lock);
   struct file *file = fd_table_get_file (fd);
   exit_on_file (f, file == NULL);
   file_seek (file, position);
-  lock_release (&filesys_lock);
 }
 
 static void
 sys_tell (struct intr_frame *f, int fd)
 {
-  lock_acquire (&filesys_lock);
   struct file *file = fd_table_get_file (fd);
   exit_on_file (f, file == NULL);
   f->eax = file_tell (file);
-  lock_release (&filesys_lock);
 }
 
 static void
 sys_close (struct intr_frame *f, int fd)
 {
-  lock_acquire (&filesys_lock);
   exit_on_file (f, !fd_table_close (fd));
-  lock_release (&filesys_lock);
 }
 
 static void
 sys_mkdir (struct intr_frame *f, const char *dir)
 {
   exit_on (f, !is_valid_string (dir));
-  lock_acquire (&filesys_lock);
   f->eax = filesys_mkdir (dir);
-  lock_release (&filesys_lock);
 }
 
 static void
 sys_chdir (struct intr_frame *f, const char *dir)
 {
   exit_on (f, !is_valid_string (dir));
-  lock_acquire (&filesys_lock);
   struct dir *d = filesys_open_dir (dir);
   if (d == NULL)
     {
@@ -440,21 +415,17 @@ sys_chdir (struct intr_frame *f, const char *dir)
       thread_current ()->working_dir = d;
       f->eax = true;
     }
-  lock_release (&filesys_lock);
 }
 
 static void
 sys_inumber (struct intr_frame *f, int fd)
 {
-  lock_acquire (&filesys_lock);
   f->eax = fd_table_inumber (fd);
-  lock_release  (&filesys_lock);
 }
 
 static void sys_readdir (struct intr_frame *f,
   int fd, char name[READDIR_MAX_LEN + 1])
 {
-  lock_acquire (&filesys_lock);
   struct dir *dir = fd_table_get_dir (fd);
   if (dir == NULL)
     {
@@ -464,12 +435,9 @@ static void sys_readdir (struct intr_frame *f,
     {
       f->eax = dir_readdir (dir, name);
     }
-  lock_release (&filesys_lock);
 }
 
 static void sys_isdir (struct intr_frame *f, int fd)
 {
-  lock_acquire (&filesys_lock);
   f->eax = !fd_table_is_file (fd);
-  lock_release (&filesys_lock);
 }

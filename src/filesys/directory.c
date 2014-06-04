@@ -169,8 +169,10 @@ dir_resolve_path (const char *path, struct dir **dir, char name[])
   /* Make a copy of the user string, for convenience. */
   size_t len = strlen (path);
   char *path_cpy = malloc (len + 1);
-  if (!path_cpy)
-    return false;
+  if (path_cpy == NULL)
+    {
+      return false;
+    }
   strlcpy (path_cpy, path, len + 1);
 
   /* Strip trailing slashes, if any. */
@@ -320,6 +322,7 @@ dir_remove (struct dir *dir, const char *name)
   struct inode *inode = NULL;
   bool success = false;
   off_t ofs;
+  struct dir *dir_rm = NULL;
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
@@ -335,7 +338,6 @@ dir_remove (struct dir *dir, const char *name)
 
   /* If inode is a directory, ensure that it is empty before
      removing it. */
-  struct dir *dir_rm = NULL;
   if (!inode_is_file (inode))
     {
       /* Refuse to remove open or working directories. */
@@ -373,12 +375,6 @@ dir_remove (struct dir *dir, const char *name)
         {
           goto done;
         }
-/*
-      block_sector_t invalid = inode_get_inumber (dir_rm->inode);
-      intr_disable ();
-      thread_foreach (dir_invalidate, &invalid);
-      intr_enable ();
-*/
     }
 
   /* Erase directory entry. */
