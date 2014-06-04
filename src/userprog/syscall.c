@@ -47,7 +47,6 @@ static bool is_valid_ptr (const void *ptr);
 static bool is_valid_range (const void *ptr, size_t len);
 static bool is_valid_string (const char *ptr);
 static inline void exit_on (struct intr_frame *f, bool condition);
-static inline void exit_on_file (struct intr_frame *f, bool condition);
 
 /* A convenience function for exiting gracefully from
    errors in system calls. The supplied condition should be
@@ -57,24 +56,11 @@ inline void
 exit_on (struct intr_frame *f, bool condition)
 {
   if (condition)
-  {
-    f->eax = -1;
-    thread_current ()->exit_status = -1;
-    thread_exit ();
-  }
-}
-
-/* Similar to exit_on, but assumes that the filesystem
-   lock is held before invoked. If the supplied condition
-   is true, the lock is released and the thread is forced
-   to exit as per exit_on. */
-inline void
-exit_on_file (struct intr_frame *f, bool condition)
-{
-  if (condition)
-  {
-    exit_on (f, true);
-  }
+    {
+      f->eax = -1;
+      thread_current ()->exit_status = -1;
+      thread_exit ();
+    }
 }
 
 void
@@ -284,7 +270,7 @@ static void
 sys_filesize (struct intr_frame *f, int fd)
 {
   struct file *file = fd_table_get_file (fd);
-  exit_on_file (f, file == NULL);
+  exit_on (f, file == NULL);
   f->eax = file_length (file);
 }
 
@@ -312,7 +298,7 @@ sys_read (struct intr_frame *f, int fd, void *buffer,
       size_t tmp;
       size_t read_bytes = 0;
       struct file *file = fd_table_get_file (fd);
-      exit_on_file (f, file == NULL);
+      exit_on (f, file == NULL);
       while (read_bytes < length)
         {
           tmp = file_read (file, (uint8_t *)buffer + read_bytes,
@@ -353,7 +339,7 @@ sys_write (struct intr_frame *f, int fd, const void *buffer,
       size_t tmp;
       size_t written_bytes = 0;
       struct file *file = fd_table_get_file (fd);
-      exit_on_file (f, file == NULL);
+      exit_on (f, file == NULL);
       while (written_bytes < length)
         {
           tmp = file_write (file, (uint8_t *)buffer + written_bytes,
@@ -372,7 +358,7 @@ static void
 sys_seek (struct intr_frame *f, int fd, unsigned position)
 {
   struct file *file = fd_table_get_file (fd);
-  exit_on_file (f, file == NULL);
+  exit_on (f, file == NULL);
   file_seek (file, position);
 }
 
@@ -380,14 +366,14 @@ static void
 sys_tell (struct intr_frame *f, int fd)
 {
   struct file *file = fd_table_get_file (fd);
-  exit_on_file (f, file == NULL);
+  exit_on (f, file == NULL);
   f->eax = file_tell (file);
 }
 
 static void
 sys_close (struct intr_frame *f, int fd)
 {
-  exit_on_file (f, !fd_table_close (fd));
+  exit_on (f, !fd_table_close (fd));
 }
 
 static void
