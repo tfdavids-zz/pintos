@@ -314,15 +314,9 @@ inode_close (struct inode *inode)
       if (inode->removed)
         {
           struct inode_disk disk_inode;
-<<<<<<< HEAD
           cache_read (fs_device, inode->sector, &disk_inode);
-          free_map_release (disk_inode.start,
-                            bytes_to_sectors (disk_inode.length));
-=======
-          block_read (fs_device, inode->sector, &disk_inode);
           inode_free (&disk_inode);
-          block_write (fs_device, inode->sector, zeros);
->>>>>>> 19ae70d8091e4780641f9ba4e6a5f05b2c16f2e9
+          cache_write (fs_device, inode->sector, zeros);
           free_map_release (inode->sector, 1);
         }
       free (inode);
