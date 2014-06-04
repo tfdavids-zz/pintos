@@ -321,29 +321,29 @@ void cache_read_bytes (struct block *block, block_sector_t sector,
     }
   else
     {
-  // didn't find it, so pop something
-  rw_writer_lock (&cache_lock);
-  c = cache_evict ();
-  rw_writer_unlock (&cache_lock);
-  struct cache_entry *c_copy = malloc (sizeof (struct cache_entry));
-  
-  c->block = block;
-  c->sector = sector;
-  c->loading = true;
-  rw_writer_unlock (&c->l);
-
-  rw_writer_lock (&cache_lock);
-  ASSERT (!cache_contains (c->block, c->sector));
-  list_push_back (&cache, &c->elem);
-  rw_writer_unlock (&cache_lock);
-
-  block_read (block, sector, c->data);
-  memcpy (buffer, c->data + sector_ofs, chunk_size);
-  rw_writer_lock (&c->l);
-  c->loading = false;
-  memcpy (c_copy, c, sizeof (struct cache_entry));
-  rw_writer_unlock (&c->l);
-
-  // thread_create ("read-ahead", PRI_MIN, cache_read_ahead, c_copy);
+      // didn't find it, so pop something
+      rw_writer_lock (&cache_lock);
+      c = cache_evict ();
+      rw_writer_unlock (&cache_lock);
+      struct cache_entry *c_copy = malloc (sizeof (struct cache_entry));
+      
+      c->block = block;
+      c->sector = sector;
+      c->loading = true;
+      rw_writer_unlock (&c->l);
+    
+      rw_writer_lock (&cache_lock);
+      ASSERT (!cache_contains (c->block, c->sector));
+      list_push_back (&cache, &c->elem);
+      rw_writer_unlock (&cache_lock);
+    
+      block_read (block, sector, c->data);
+      memcpy (buffer, c->data + sector_ofs, chunk_size);
+      rw_writer_lock (&c->l);
+      c->loading = false;
+      memcpy (c_copy, c, sizeof (struct cache_entry));
+      rw_writer_unlock (&c->l);
+    
+      // thread_create ("read-ahead", PRI_MIN, cache_read_ahead, c_copy);
     }
 } 
