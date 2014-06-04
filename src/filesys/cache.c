@@ -41,7 +41,7 @@ struct cache_entry
   bool accessed;                /* True if entry has been used recently. */
   bool loading;                 /* True if entry's data is being loaded. */
   bool dirty;                   /* True if entry's data has been modified. */
-  bool writing_dirty;           /* True if writing to disk. */
+  bool writing_dirty;
   char data[BLOCK_SECTOR_SIZE]; /* The cached data. */
   struct rw_lock l;                  /* To synchronize access to the entry. */
 };
@@ -75,13 +75,14 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 {
   //printf ("reading block %#x, sector %d\n", block, sector);
   /* If the block is already cached, simply read its entry. */
-  struct cache_entry *c = cache_get_lock (block, sector, C_READ);
+  struct cache_entry *c = cache_get_lock (block, sector, C_WRITE);
 
+  /* If we found the entry, simply serve data from it. */
   if (c != NULL)
     {
       memcpy (buffer, c->data, BLOCK_SECTOR_SIZE);
       c->accessed = true;
-      rw_reader_unlock (&c->l);
+      rw_writer_unlock (&c->l);
       return;
     }
 
@@ -148,6 +149,8 @@ cache_write_dirty (void *aux)
           cond_wait (&dirty_queue_empty, &dirty_queue_lock);
         }
 
+      ASSERT (!list_empty (&dirty_queue));
+#if 0
       if (list_empty (&dirty_queue))
         {
           // running must be false, so quit
@@ -155,23 +158,23 @@ cache_write_dirty (void *aux)
           lock_release (&dirty_queue_lock);
           break;
         }
+#endif
 
       struct list_elem *e;
       struct cache_entry *c;
 
-      rw_reader_lock (&cache_lock);
       for (e = list_pop_front (&dirty_queue); !list_empty (&dirty_queue);
         e = list_pop_front (&dirty_queue))
         {
+          printf ("Writing dirty!\n");
           c = list_entry (e, struct cache_entry, d_elem);
-          rw_reader_lock (&c->l);
           ASSERT (c->dirty);
           block_write (c->block, c->sector, c->data);
           c->dirty = false; /* TODO: Should hold writer lock? */
           c->writing_dirty = false;
-          rw_reader_unlock (&c->l);
+          printf ("Wrote!\n");
+          rw_writer_unlock (&c->l);
         }
-      rw_reader_unlock (&cache_lock);
       lock_release (&dirty_queue_lock);
     }
 }
@@ -192,14 +195,16 @@ cache_read_ahead (void *aux)
           cond_wait (&read_queue_empty, &read_queue_lock);
         }
 
-      if (list_empty (&read_queue))
+      ASSERT (!list_empty (&dirty_queue));
+#if 0
+      if (list_empty (&dirty_queue))
         {
+          // running must be false, so quit
           ASSERT (!running);
-          lock_release (&read_queue_lock);
+          lock_release (&dirty_queue_lock);
           break;
         }
-
-      rw_reader_lock (&cache_lock);
+#endif
 
       struct list_elem *e;
       struct cache_entry *c;
@@ -230,18 +235,33 @@ struct cache_entry *cache_get_lock (struct block *block, block_sector_t sector,
        e = list_next (e))
     {
       c = list_entry (e, struct cache_entry, elem);
+
+      if (lock_type == C_READ)
+        {
+          rw_reader_lock (&c->l);
+        }
+      else
+        {
+          rw_writer_lock (&c->l);
+        }
+      /* Eviction cannot race us here, since it holds the
+         cache writer lock for the entirety of the function. */
       if (c->block == block && c->sector == sector)
         {
-          if (lock_type == C_READ)
-            {
-              rw_reader_lock (&c->l);
-            }
-          else
-            {
-              rw_writer_lock (&c->l);
-            }
+          /* TODO */ /* Allow I/O to complete for getting this cache entry. */
+          /* It is crucial that we acquire this lock before
+             releasing the cache lock -- otherwise, we could
+             race with eviction. */
           rw_reader_unlock (&cache_lock);
           return c;
+        }
+      if (lock_type == C_READ)
+        {
+          rw_reader_unlock (&c->l);
+        }
+      else
+        {
+          rw_writer_unlock (&c->l);
         }
     }
   rw_reader_unlock (&cache_lock);
@@ -257,6 +277,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
 
   rw_writer_lock (&cache_lock);
 
+  /* Ensure that a corresponding cache entry does not exist. */
   for (e = list_begin (&cache); e != list_end (&cache);
        e = list_next (e))
     {
@@ -278,22 +299,34 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
       /* TODO: Synchronization. Acquire a reader lock? */
       c = list_entry (e, struct cache_entry, elem);
 
+      size_t i = 0;
+      size_t j = 0;
       while (c->loading || c->accessed || c->dirty || c->writing_dirty)
         {
-          if (c->writing_dirty || c->loading)
+          if (i % NUM_CACHE_BLOCKS == 0)
             {
-              // if (c->accessed)
-              //   c->accessed = false;
-              // else
-              //   break;
+              printf ("Made a full loop, loop no: %d!\n", j);
+              j++;
             }
-          else
+          if (!c->writing_dirty && !c->loading)
             {
               /* TODO: Acquire a writer lock? */
               if (c->dirty)
                 {
-                  c->writing_dirty = true;
                   lock_acquire (&dirty_queue_lock);
+                  rw_writer_lock (&c->l);
+                  c->writing_dirty = true;
+
+                  /* TODO Remove this, it's janky */
+                  struct list_elem *d;
+                  struct cache_entry *tmp;
+                  for (d = list_begin (&dirty_queue); d != list_end (&dirty_queue);
+                       d = list_next (d))
+                    {
+                      tmp = list_entry (d, struct cache_entry, d_elem);
+                      ASSERT (tmp->block != block && tmp->sector != sector);
+                    }
+
                   list_push_back (&dirty_queue, &c->d_elem);
                   cond_signal (&dirty_queue_empty, &dirty_queue_lock);
                   lock_release (&dirty_queue_lock);
@@ -305,6 +338,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
           ASSERT (!list_empty (&cache));
           e = list_pop_front (&cache);
           c = list_entry (e, struct cache_entry, elem);
+          i++;
         }
     }
   else
@@ -345,6 +379,7 @@ void cache_flush (void)
   cond_signal (&dirty_queue_empty, &dirty_queue_lock);
   lock_release (&dirty_queue_lock);
 
+#if 0
   /* Now clear the cache. */
   while (list_size (&cache) > 0)
     {
@@ -365,6 +400,7 @@ void cache_flush (void)
 
       free (c);
     }
+#endif
 
   cache_full = false;
 
