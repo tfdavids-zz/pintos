@@ -474,7 +474,7 @@ void cache_read_bytes (struct block *block, block_sector_t sector,
 }
 
 void cache_write_bytes (struct block *block, block_sector_t sector,
-                        int sector_ofs, int chunk_size, void *buffer)
+                        int sector_ofs, int chunk_size, const void *buffer)
 {
   struct cache_entry *c = cache_get_lock (block, sector, C_WRITE);
   if (c != NULL)
