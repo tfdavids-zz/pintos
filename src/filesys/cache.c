@@ -107,16 +107,18 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
 {
-  printf ("writing block %#x, sector %d\n", block, sector);
+  // printf ("writing block %#x, sector %d\n", block, sector);
 
   // check if cache contains block and sector
   struct cache_entry *c = cache_get_lock (block, sector, C_WRITE);
   if (c != NULL)
     {
-      c->dirty = true;
       c->writing_dirty = false;
       c->accessed = true;
       memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
+      c->dirty = true;
+      block_write (block, sector, c->data);
+      c->dirty = false;
       rw_writer_unlock (&c->l);
       return;
     }
@@ -302,7 +304,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
     }
 
   rw_writer_lock (&c->l);
-  list_push_back (&cache, &c->elem);
+  //list_push_back (&cache, &c->elem);
   c->sector = sector;
   c->block = block;
   c->loading = true;
@@ -313,6 +315,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
 
 void cache_flush (void)
 {
+  return;
   rw_writer_lock (&cache_lock);
 
   struct cache_entry *c;
