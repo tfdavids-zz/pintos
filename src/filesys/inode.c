@@ -212,24 +212,7 @@ inode_create (block_sector_t sector, off_t length, uint32_t type)
       disk_inode->sectors = bytes_to_sectors (length);
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
-      /*TODO: this should be modified to work with indexing */
       block_write (fs_device, sector, disk_inode);
-      /* TODO: What is this code and why is it commented out? */
-      /*
-      if (free_map_allocate (sectors, &disk_inode->start)) 
-        {
-          cache_write (fs_device, sector, disk_inode);
-          if (sectors > 0) 
-            {
-              static char zeros[BLOCK_SECTOR_SIZE];
-              size_t i;
-
-              for (i = 0; i < sectors; i++) 
-                cache_write (fs_device, disk_inode->start + i, zeros);
-            }
-          success = true; 
-        }
-      */
     }
 
   free (disk_inode);
@@ -237,7 +220,6 @@ inode_create (block_sector_t sector, off_t length, uint32_t type)
   return success;
 }
 
-/* TODO: Update this comment! */
 /* Reads an inode from SECTOR
    and returns a `struct inode' that contains it.
    Returns a null pointer if memory allocation fails. */
@@ -433,8 +415,9 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 }
 
 /* Writes SIZE bytes from BUFFER into INODE, starting at OFFSET.
-   Returns the number of bytes actually written, which may be
-   less than SIZE if end of file is reached or an error occurs.
+   Grows the file to the appropriate size(not above max size)
+   if necessary
+   Returns the number of bytes actually written
 */
 off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
@@ -456,9 +439,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     {
       struct inode_disk *disk_inode;
       disk_inode = calloc_wrapper (1, sizeof *disk_inode);
-      block_read (fs_device, inode->sector, disk_inode); /* TODO: cache_read */
+      block_read (fs_device, inode->sector, disk_inode);
       disk_inode->length = inode_grow (disk_inode, offset + size);
-      block_write (fs_device, inode->sector, disk_inode); /* TODO: cache_write */
+      block_write (fs_device, inode->sector, disk_inode);
       free (disk_inode);
     }
 
@@ -774,7 +757,7 @@ inode_grow_indir_block (struct indir_block_disk *indir_block,
     }
   return added_sectors;
 }
-
+/* Given inode frees(overwrites with zeros) all of its blocks */
 bool
 inode_free (struct inode_disk *disk_inode)
 {
@@ -796,6 +779,9 @@ inode_free (struct inode_disk *disk_inode)
   return success;
 }
 
+/* Frees all blocks dir blocks of the given inode
+return: true on success
+*/
 bool
 inode_free_dir_blocks (struct inode_disk *disk_inode)
 {
@@ -813,6 +799,9 @@ inode_free_dir_blocks (struct inode_disk *disk_inode)
   return true;
 }
 
+/* Frees all blocks pointed by the indir block of the given inode 
+return: true on success
+*/
 bool
 inode_free_indir_blocks (struct inode_disk *disk_inode)
 {
@@ -841,6 +830,9 @@ inode_free_indir_blocks (struct inode_disk *disk_inode)
   return success;
 }
 
+/* Frees all blocks pointed by the doubly indir block of the given inode 
+return: true on success
+*/
 bool
 inode_free_doubly_indir_blocks (struct inode_disk *disk_inode)
 {
@@ -905,7 +897,6 @@ calloc_wrapper (size_t cnt, size_t size)
   void *ptr = calloc (cnt, size);
   if (ptr == NULL)
     {
-      /* TODO: Is a panic really the right thing to do here? */
       PANIC ("Ran out of kernel memory.");
     }
   return ptr;
