@@ -49,35 +49,6 @@ void cache_init (void)
   thread_create ("write-periodically", PRI_MIN, cache_write_periodically, NULL);
 }
 
-/* TODO */
-void
-cache_read_ahead (void *aux)
-{
- /* TODO: I suspect that a background thread will not free all
-    the resources that it is supposed to free. */
-  while (running)
-  {
-    lock_acquire (&read_queue_lock);
-    while (running && list_empty (&read_queue))
-      {
-        cond_wait (&read_queue_empty, &read_queue_lock);
-      }
-
-    struct list_elem *e;
-    struct cache_entry *c;
-    for (e = list_pop_front (&read_queue); !list_empty (&read_queue);
-      e = list_pop_front (&read_queue))
-      {
-        c = list_entry (e, struct cache_entry, r_elem);
-        rw_writer_lock (&c->l);
-        block_read (c->block, c->sector, c->data);
-        c->loading = false;
-        rw_writer_unlock (&c->l);
-      }
-    lock_release (&read_queue_lock);
-  }
-}
-
 void cache_write_periodically (void *aux UNUSED)
 {
   struct list_elem *e;
@@ -95,9 +66,7 @@ void cache_write_periodically (void *aux UNUSED)
           c = list_entry (e, struct cache_entry, elem);
           if (c->dirty)
             {
-              c->writing_dirty = true;
               block_write (c->block, c->sector, c->data);
-              c->writing_dirty = false;
               c->dirty = false;
             }
         }
