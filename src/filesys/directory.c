@@ -35,12 +35,11 @@ dir_create (block_sector_t sector, size_t entry_cnt)
 
 /* Opens and returns the directory for the given INODE, of which
    it takes ownership.  Returns a null pointer on failure. */
-/* TODO: Confirm inode is a dir? */
 struct dir *
 dir_open (struct inode *inode) 
 {
   struct dir *dir = calloc (1, sizeof *dir);
-  if (inode != NULL && dir != NULL)
+  if (inode != NULL && !inode_is_file (inode) && dir != NULL)
     {
       dir->inode = inode;
       dir->pos = 0;
@@ -111,17 +110,18 @@ lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  /* TODO: This should use the block cache ... */
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
-    if (e.in_use && !strcmp (name, e.name)) 
-      {
-        if (ep != NULL)
-          *ep = e;
-        if (ofsp != NULL)
-          *ofsp = ofs;
-        return true;
-      }
+    {
+      if (e.in_use && !strcmp (name, e.name)) 
+        {
+          if (ep != NULL)
+            *ep = e;
+          if (ofsp != NULL)
+            *ofsp = ofs;
+          return true;
+        }
+    }
   return false;
 }
 
@@ -214,19 +214,21 @@ dir_resolve_path (const char *path, struct dir **dir, char name[])
         }
       strlcpy (curr_name, left, right - left + 1);
 
-      /* Confirm that this is a directory. */
-      /* TODO */
-
       /* Do a lookup for the entry. */
+      inode_dir_lock (curr_dir->inode);
       success = lookup (curr_dir, curr_name, &curr_dir_ent, NULL);
       if (!success)
         {
+          inode_dir_unlock (curr_dir->inode);
           goto done;
         }
 
       /* close old dir, open new dir, advance left. */
+      struct dir *new_dir = dir_open_inumber (curr_dir_ent.inode_sector);
+      inode_dir_unlock (curr_dir->inode);
       dir_close (curr_dir);
-      curr_dir = dir_open_inumber (curr_dir_ent.inode_sector);
+      curr_dir = new_dir;
+
       success = (curr_dir != NULL);
       if (!success)
         {
@@ -250,7 +252,7 @@ dir_resolve_path (const char *path, struct dir **dir, char name[])
 }
 
 /* Adds an entry named NAME to DIR, which must not already contain a
-   file by that name.  The entry's inode is in sector
+   entry by that name.  The entry's inode is in sector
    INODE_SECTOR.
    Returns true if successful, false on failure.
    Fails if NAME is invalid (i.e. too long) or a disk or memory
@@ -274,8 +276,12 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
     return false;
 
   /* Check that NAME is not in use. */
+  inode_dir_lock (dir->inode);
   if (lookup (dir, name, NULL, NULL))
-    goto done;
+    {
+      inode_dir_unlock (dir->inode);
+      return false;
+    }
 
   /* Set OFS to offset of free slot.
      If there are no free slots, then it will be set to the
@@ -284,34 +290,22 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
      inode_read_at() will only return a short read at end of file.
      Otherwise, we'd need to verify that we didn't get a short
      read due to something intermittent such as low memory. */
-  /* TODO: Block cache */
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
-    if (!e.in_use)
-      break;
+    {
+      if (!e.in_use)
+        break;
+    }
 
   /* Write slot. */
   e.in_use = true;
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
-  /* TODO: Block cache */
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
 
- done:
+  inode_dir_unlock (dir->inode);
   return success;
 }
-
-/* TODO */
-#if 0
-static void dir_invalidate (struct thread *t, void *aux)
-{
-  block_sector_t sector = *((block_sector_t *)aux);
-  if (t->working_dir_inumber == sector)
-    {
-      t->working_dir_inumber = 0;
-    }
-}
-#endif
 
 /* Removes any entry for NAME in DIR.
    Returns true if successful, false on failure,
@@ -329,6 +323,7 @@ dir_remove (struct dir *dir, const char *name)
   ASSERT (name != NULL);
 
   /* Find directory entry. */
+  inode_dir_lock (dir->inode);
   if (!lookup (dir, name, &e, &ofs))
     goto done;
 
@@ -342,8 +337,10 @@ dir_remove (struct dir *dir, const char *name)
   if (!inode_is_file (inode))
     {
       /* Refuse to remove open or working directories. */
+      inode_dir_lock (inode);
       if (inode_open_count (inode) > 1)
         {
+          inode_dir_unlock (inode);
           goto done;
         }
 
@@ -356,6 +353,7 @@ dir_remove (struct dir *dir, const char *name)
           if (curr.in_use && strcmp(curr.name, CURR_DIR) != 0 &&
             strcmp (curr.name, PREV_DIR) != 0)
             {
+              inode_dir_unlock (inode);
               goto done;
             }
         }
@@ -366,6 +364,7 @@ dir_remove (struct dir *dir, const char *name)
       if (!lookup (dir_rm, CURR_DIR, &curr_dir, &curr_dir_ofs) ||
           !lookup (dir_rm, PREV_DIR, &prev_dir, &prev_dir_ofs))
         {
+          inode_dir_unlock (inode);
           goto done;
         }
       curr_dir.in_use = prev_dir.in_use = false;
@@ -374,13 +373,14 @@ dir_remove (struct dir *dir, const char *name)
           (inode_write_at (dir_rm->inode, &prev_dir, sizeof prev_dir,
                           prev_dir_ofs) != sizeof prev_dir))
         {
+          inode_dir_unlock (inode);
           goto done;
         }
+      inode_dir_unlock (inode);
     }
 
   /* Erase directory entry. */
   e.in_use = false;
-  /* TODO: Block cache */
   if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e) 
     goto done;
 
@@ -389,6 +389,7 @@ dir_remove (struct dir *dir, const char *name)
   success = true;
 
  done:
+  inode_dir_unlock (dir->inode);
   if (dir_rm != NULL)
     {
       dir_close (dir_rm);
@@ -407,7 +408,9 @@ bool
 dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
   struct dir_entry e;
+  bool success = false;
 
+  inode_dir_lock (dir->inode);
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
     {
       dir->pos += sizeof e;
@@ -415,8 +418,10 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         strcmp (e.name, PREV_DIR) != 0)
         {
           strlcpy (name, e.name, NAME_MAX + 1);
-          return true;
+          success = true;
+          break;
         } 
     }
-  return false;
+  inode_dir_unlock (dir->inode);
+  return success;
 }
