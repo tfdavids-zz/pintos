@@ -31,7 +31,6 @@ struct inode_disk
     uint32_t unused[110];                          /* Not used. */
   };
 
-
 /* A block of zeros, used for initalizing memory */
 static char zeros[BLOCK_SECTOR_SIZE];
 
@@ -82,7 +81,7 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct lock lock;                   /* Synch access to inode */
-    struct rw_lock dir_lock;            /* Synch access to underlying directory,
+    struct lock d_lock;            /* Synch access to underlying directory,
                                            if any. */
   };
 
@@ -276,7 +275,7 @@ inode_open (block_sector_t sector)
   inode->deny_write_cnt = 0;
   inode->removed = false;
   lock_init (&inode->lock);
-  rw_init (&inode->dir_lock);
+  lock_init (&inode->d_lock);
   list_push_front (&open_inodes, &inode->elem);
   rw_writer_unlock (&rw_l);
 
@@ -931,25 +930,12 @@ inode_is_file (struct inode *inode)
 }
 
 void
-inode_dir_read_lock (struct inode *inode)
+inode_dir_lock (struct inode *inode)
 {
-  rw_reader_lock (&inode->dir_lock);
+  lock_acquire (&inode->d_lock);
 }
-
 void
-inode_dir_read_unlock (struct inode *inode)
+inode_dir_unlock (struct inode *inode)
 {
-  rw_reader_unlock (&inode->dir_lock);
-}
-
-void
-inode_dir_write_lock (struct inode *inode)
-{
-  rw_writer_lock (&inode->dir_lock);
-}
-
-void
-inode_dir_write_unlock (struct inode *inode)
-{
-  rw_writer_unlock (&inode->dir_lock);
+  lock_release (&inode->d_lock);
 }
