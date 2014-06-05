@@ -21,6 +21,9 @@ enum fd_type
 struct fd_entry
   {
     enum fd_type fd_type;
+
+    /* An fd_entry can hold either a file or
+       a directory, depending on the type. */
     union
       {
         struct file *file;

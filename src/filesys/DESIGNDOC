@@ -59,6 +59,8 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct lock lock;                   /* Synch access to inode */
+    struct lock d_lock;                 /* Synchronize access to the underlying
+                                           directory, if any. */
   };
 
 /* A block of zeros, used for initalizing memory */
@@ -67,7 +69,8 @@ static char zeros[BLOCK_SECTOR_SIZE];
 /* Indirect and doubly indirect blocks on disk */
 struct indir_block_disk
   {
-    block_sector_t block_ptrs[PTRS_PER_INDIR_BLOCK];    /* Block ptrs in indir block */
+    /* Block ptrs in indir block */ 
+    block_sector_t block_ptrs[PTRS_PER_INDIR_BLOCK];   
   };
 
 >> A2: What is the maximum size of a file supported by your inode
@@ -114,8 +117,7 @@ half written data.
 
 In our implementation reads do not block on writes. And writes only block each
 other if they are both trying to grow the file. So neither readers can block
-writers indefintly nor visa versa.
-
+writers indefintly nor vice versa.
 
 ---- RATIONALE ----
 
@@ -139,6 +141,36 @@ much larger than the total file system partition space.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+In fdtable.c:
+
+/* The fd_type is used to distnguish between files and directories
+   in the file descriptor table. */
+enum fd_type
+  {
+    FD_DIRECTORY,
+    FD_FILE,
+  };
+
+/* The fd_entry is used as a wrapper around a file or directory
+   in the file descriptor table. */
+struct fd_entry
+  {
+    enum fd_type fd_type;
+
+    /* An fd_entry can hold either a file or
+       a directory, depending on the type. */
+    union
+      {
+        struct file *file;
+        struct dir *dir;
+      };
+  };
+
+In inode.c:
+Within struct inode ...
+    struct lock d_lock;      /* Synchronize access to underlying directory,
+                                if any. */
+
 ---- ALGORITHMS ----
 
 >> B2: Describe your code for traversing a user-specified path.  How
@@ -151,7 +183,9 @@ be stored. If there is a leading slash (indicating an absolute path), or if the
 working directory is NULL, we open the root directory and start from there.
 Otherwise, we reopen the current working directory and start from there. In
 both cases, we jump through the directories in order until we find the final
-one, then fill the char name[] with the filename.
+one, then fill the char name[] with the filename. We also ensure that each
+named directory in the path is indeed a directory, and fail if that is
+not the case.
 
 ---- SYNCHRONIZATION ----
 
@@ -160,16 +194,30 @@ one, then fill the char name[] with the filename.
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
+Each inode carries a struct lock d_lock, meant to synchronize access
+to the underlying directory (that is, if the inode represents a
+directory). The inode interface offers wrapper functions that allow
+the directory code to lock and unlock the directory lock. The directory
+code elects to do so when creating and removing files, adding
+directory entries, and when looking up directories by their sector number,
+in order to avoid races.
+
+This design ensures that different directories can be accessed concurrently,
+at the expense of making operations on a given directory sequential.
+
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
 
 We do not allow a directory to be removed if it is open by a process, or if it
-is in use as a process's current working directory. To prevent this, we group
-both of these together by having a process always have its current working
-directory open. This way, we can just check whether any process has a directory
-open before removing it.
+is in use as a process's current working directory. To prevent a process
+from from removing such a directory, we only a directory to be removed
+if its inode open count is 0. Note that, in our design, a process always
+has its current working directory open (unless if that directory is root,
+in which case the directory cannot be removed anyway). Thus, we do not
+need to treat process' working directory as a special case when attempting
+removal.
 
 ---- RATIONALE ----
 
@@ -178,8 +226,11 @@ open before removing it.
 
 We chose to represent the current directory like this because it simplifies the
 logic for removing directories (discussed in B5). While it might be simpler or
-more efficient to just store the inumber of the current working directory, this
-approach makes it easy to check whether we can remove a directory.
+more efficient to just store the inumber of the current working directory, our
+approach makes it easier to check whether we can remove a directory. If we only
+stored the inumber, then, upon directory removal, we would have to exhaustively
+examine threads and check that their working inumber did not equal the inumber
+of the directory being removed.
 
 			     BUFFER CACHE
 			     ============
