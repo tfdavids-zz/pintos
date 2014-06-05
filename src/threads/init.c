@@ -88,7 +88,6 @@ main (void)
   /* Initialize ourselves as a thread so we can use locks,
      then enable console locking. */
   thread_init ();
-  cache_init ();
   console_init ();  
 
   /* Greet user. */
@@ -123,6 +122,7 @@ main (void)
 
 #ifdef FILESYS
   /* Initialize file system. */
+  cache_init ();
   ide_init ();
   locate_block_devices ();
   filesys_init (format_filesys);

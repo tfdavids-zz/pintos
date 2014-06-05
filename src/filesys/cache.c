@@ -33,7 +33,7 @@ static bool running; /* For communicating with background threads. */
 struct cache_entry
 {
   struct list_elem elem;   /* For the cache list. */
-  // struct list_elem d_elem; /* For the dirty list. */
+  struct list_elem d_elem; /* For the dirty list. */
   // struct list_elem r_elem; /* For the read-ahead list. */
 
   struct block *block;
@@ -47,7 +47,7 @@ struct cache_entry
   struct rw_lock l;                  /* To synchronize access to the entry. */
 };
 
-// void cache_write_dirty (void *aux);
+void cache_write_dirty (void *aux);
 struct cache_entry *cache_get_lock (struct block *block, block_sector_t sector,
   int lock_type);
 struct cache_entry *cache_insert_write_lock (struct block *block,
@@ -67,13 +67,16 @@ void cache_init (void)
   // lock_init (&read_queue_lock);
   running = true;
 
-  // thread_create ("write-behind", PRI_DEFAULT, cache_write_dirty, NULL); /* TODO */
+  // thread_create ("write-behind", PRI_MIN, cache_write_dirty, NULL); /* TODO */
   // thread_create ("read-ahead", PRI_MIN, cache_read_ahead, NULL);
   // thread_create ("write-periodically", PRI_MIN, cache_write_periodically, NULL);
 }
 
 void cache_read (struct block *block, block_sector_t sector, void *buffer)
 {
+  block_read (block, sector, buffer);
+  return;
+
   /* If the block is already cached, simply read its entry. */
   struct cache_entry *c = cache_get_lock (block, sector, C_READ);
   if (c != NULL)
@@ -107,8 +110,6 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
 {
-  // printf ("writing block %#x, sector %d\n", block, sector);
-
   // check if cache contains block and sector
   struct cache_entry *c = cache_get_lock (block, sector, C_WRITE);
   if (c != NULL)
@@ -140,7 +141,7 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
 //  /* TODO: I suspect that a background thread will not free all
 //     the resources that it is supposed to free. */
 //   thread_current ()->background = true;
-//
+// 
 //   while (running)
 //   {
 //     lock_acquire (&dirty_queue_lock);
@@ -148,17 +149,17 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
 //       {
 //         cond_wait (&dirty_queue_empty, &dirty_queue_lock);
 //       }
-//
+// 
 //     if (list_empty (&dirty_queue))
 //       {
 //         // running must be false, so quit
 //         lock_release (&dirty_queue_lock);
 //         break;
 //       }
-//
+// 
 //     struct list_elem *e;
 //     struct cache_entry *c;
-//
+// 
 //     for (e = list_pop_front (&dirty_queue); !list_empty (&dirty_queue);
 //       e = list_pop_front (&dirty_queue))
 //       {
@@ -280,12 +281,16 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
               /* TODO: Acquire a writer lock? */
               if (c->dirty)
                 {
-                  ASSERT (false);
-                  // c->writing_dirty = true;
-                  // lock_acquire (&dirty_queue_lock);
-                  // list_push_back (&dirty_queue, &c->d_elem);
-                  // cond_signal (&dirty_queue_empty, &dirty_queue_lock);
-                  // lock_release (&dirty_queue_lock);
+                  rw_reader_lock (&c->l);
+                  block_write (c->block, c->sector, c->data);
+                  c->dirty = false;
+                  rw_reader_unlock (&c->l);
+                  break;
+                  //c->writing_dirty = true;
+                  //lock_acquire (&dirty_queue_lock);
+                  //list_push_back (&dirty_queue, &c->d_elem);
+                  //cond_signal (&dirty_queue_empty, &dirty_queue_lock);
+                  //lock_release (&dirty_queue_lock);
                 }
               c->accessed = false;
             }
@@ -304,7 +309,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
     }
 
   rw_writer_lock (&c->l);
-  //list_push_back (&cache, &c->elem);
+  list_push_back (&cache, &c->elem);
   c->sector = sector;
   c->block = block;
   c->loading = true;
