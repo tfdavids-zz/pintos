@@ -356,43 +356,6 @@ the quarter.
                 APPENDIX: UNUSED CODE
                 ====================
 
-  // thread_create ("write-periodically", PRI_MIN, cache_write_periodically, NULL);
-
-/*
-void cache_write_periodically (void *aux UNUSED)
-{
-  thread_current ()->background = true;
-
-  struct list_elem *e;
-  struct cache_entry *c;
-
-  while (running)
-    {
-      ASSERT (false);
-      timer_msleep (30000);
-
-      rw_reader_lock (&cache_lock);
-
-      for (e = list_begin (&cache); e != list_end (&cache);
-           e = list_next (e))
-        {
-          c = list_entry (e, struct cache_entry, elem);
-          if (c->dirty)
-            {
-              rw_reader_lock (&c->l);
-              c->writing_dirty = true;
-              block_write (c->block, c->sector, c->data);
-              c->writing_dirty = false;
-              c->dirty = false;
-              rw_reader_unlock (&c->l);
-            }
-        }
-
-      rw_reader_unlock (&cache_lock);
-    }
-}
-*/
-
 //
 // /* For reading ahead. */
 // static struct list read_queue;
