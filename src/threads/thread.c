@@ -387,8 +387,7 @@ thread_exit (void)
     }
 
 #ifdef USERPROG
-  if (!t->background)
-    process_exit ();
+  process_exit ();
 #endif
 
   /* Remove thread from all threads list, set our status to dying,

@@ -17,6 +17,15 @@ Robert Gasparyan <robertga@stanford.edu>
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
 
+We were unable to successfully implement read-ahead in our buffer cache, and
+we also were unable to write periodically back to disk (we do, however, have
+write-behind, where each entry is only written upon eviction or when the
+process exits, and filesys_done is called). In case it helps, we have included
+the design and code that we did have for those parts in an appendix, after the
+rest of the design doc. In the section about how we implemented read-ahead, we
+describe how we would have implemented it, and how we attempted to before
+running out of time.
+
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
@@ -39,6 +48,19 @@ struct inode_disk
     uint32_t sectors;                              /* Number of data sectors */
     uint32_t type;                                 /* I_FILE or I_DIR */
     uint32_t unused[110];                          /* Not used. */
+  };
+
+/* In-memory inode. */
+struct inode
+  {
+    struct list_elem elem;              /* Element in inode list. */
+    block_sector_t sector;              /* Sector number of disk location. */
+    int open_cnt;                       /* Number of openers. */
+    bool removed;                       /* True if deleted, false otherwise. */
+    int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
+    struct lock lock;                   /* Synch access to inode */
+    struct lock d_lock;                 /* Synchronize access to the underlying
+                                           directory, if any. */
   };
 
 /* A block of zeros, used for initalizing memory */
@@ -93,8 +115,9 @@ half written data.
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
 
-In our implementation reads do not block on writes. And writes block only on
-other writes. So neither readers can block writers indefinitly nor visa versa.
+In our implementation reads do not block on writes. And writes only block each
+other if they are both trying to grow the file. So neither readers can block
+writers indefintly nor vice versa.
 
 ---- RATIONALE ----
 
@@ -265,6 +288,8 @@ the function cache_flush, which is called when the cache is destroyed.
 
 >> C4: Describe your implementation of read-ahead.
 
+Note: see the note to TAs in the preliminaries.
+
 When a block is read, we automatically insert a cache_entry for the next block
 as well. This cache entry has a bit set indicating that it hasn't been loaded
 yet; to remedy this, another thread (created at initialization) is constantly
@@ -327,3 +352,80 @@ the quarter.
 >> students in future quarters?
 
 >> Any other comments?
+
+                APPENDIX: UNUSED CODE
+                ====================
+
+  // thread_create ("write-periodically", PRI_MIN, cache_write_periodically, NULL);
+
+/*
+void cache_write_periodically (void *aux UNUSED)
+{
+  thread_current ()->background = true;
+
+  struct list_elem *e;
+  struct cache_entry *c;
+
+  while (running)
+    {
+      ASSERT (false);
+      timer_msleep (30000);
+
+      rw_reader_lock (&cache_lock);
+
+      for (e = list_begin (&cache); e != list_end (&cache);
+           e = list_next (e))
+        {
+          c = list_entry (e, struct cache_entry, elem);
+          if (c->dirty)
+            {
+              rw_reader_lock (&c->l);
+              c->writing_dirty = true;
+              block_write (c->block, c->sector, c->data);
+              c->writing_dirty = false;
+              c->dirty = false;
+              rw_reader_unlock (&c->l);
+            }
+        }
+
+      rw_reader_unlock (&cache_lock);
+    }
+}
+*/
+
+//
+// /* For reading ahead. */
+// static struct list read_queue;
+// static struct condition read_queue_empty;
+// static struct lock read_queue_lock;
+
+// /* TODO */
+// void
+// cache_read_ahead (void *aux)
+// {
+//  /* TODO: I suspect that a background thread will not free all
+//     the resources that it is supposed to free. */
+//   thread_current ()->background = true;
+//
+//   while (running)
+//   {
+//     lock_acquire (&read_queue_lock);
+//     while (running && list_empty (&read_queue))
+//       {
+//         cond_wait (&read_queue_empty, &read_queue_lock);
+//       }
+//
+//     struct list_elem *e;
+//     struct cache_entry *c;
+//     for (e = list_pop_front (&read_queue); !list_empty (&read_queue);
+//       e = list_pop_front (&read_queue))
+//       {
+//         c = list_entry (e, struct cache_entry, r_elem);
+//         rw_writer_lock (&c->l);
+//         block_read (c->block, c->sector, c->data);
+//         c->loading = false;
+//         rw_writer_unlock (&c->l);
+//       }
+//     lock_release (&read_queue_lock);
+//   }
+// }
