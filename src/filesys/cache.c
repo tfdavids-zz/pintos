@@ -64,19 +64,6 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   memcpy (buffer, c->data, BLOCK_SECTOR_SIZE);
   c->loading = false;
   rw_writer_unlock (&c->l);
-
-
-  // read-ahead
-  // printf ("reading ahead block %#x, sector %d\n", block, sector + 1);
-  // c = cache_insert_write_lock (block, sector+1);
-  // if (c == NULL)
-  //   return;
-  // rw_writer_unlock (&c->l);
-
-  // lock_acquire (&read_queue_lock);
-  // list_push_back (&read_queue, &c->r_elem);
-  // cond_signal (&read_queue_empty, &read_queue_lock);
-  // lock_release (&read_queue_lock);
 }
 
 void cache_write (struct block *block, block_sector_t sector, const void *buffer)
@@ -89,8 +76,6 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
       c->accessed = true;
       memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
       c->dirty = true;
-      //block_write (block, sector, c->data);
-      //c->dirty = false;
       rw_writer_unlock (&c->l);
       return;
     }
@@ -100,8 +85,6 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
   memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
   c->loading = false;
   c->dirty = true;
-  //block_write (block, sector, c->data);
-  //c->dirty = false;
   rw_writer_unlock (&c->l);
 }
 
@@ -174,10 +157,8 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
             {
               if (c->dirty)
                 {
-                  //rw_reader_lock (&c->l);
                   block_write (c->block, c->sector, c->data);
                   c->dirty = false;
-                  //rw_reader_unlock (&c->l);
                   break;
                 }
               c->accessed = false;
@@ -277,8 +258,6 @@ void cache_write_bytes (struct block *block, block_sector_t sector,
       memcpy (c->data + sector_ofs, buffer, chunk_size);
       c->loading = false;
       c->dirty = true;
-      //block_write (block, sector, c->data);
-      //c->dirty = false;
       rw_writer_unlock (&c->l);
     }
 }
