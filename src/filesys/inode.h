@@ -28,8 +28,6 @@ void inode_allow_write (struct inode *);
 off_t inode_length (struct inode *);
 bool inode_is_file (struct inode *);
 
-void inode_dir_read_lock (struct inode *);
-void inode_dir_read_unlock (struct inode *);
-void inode_dir_write_lock (struct inode *);
-void inode_dir_write_unlock (struct inode *);
+void inode_dir_lock (struct inode *);
+void inode_dir_unlock (struct inode *);
 #endif /* filesys/inode.h */
