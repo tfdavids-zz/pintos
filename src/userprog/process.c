@@ -178,6 +178,10 @@ process_exit (void)
   fd_table_dispose ();
   free (cur->fd_table);
   file_close (cur->executable);
+  if (cur->working_dir != NULL)
+    {
+      dir_close (cur->working_dir);
+    }
 
   /* Inform this process' parent, if it exists, that we are exiting.
      Interrupts must be disabled to ensure that the parent does not
