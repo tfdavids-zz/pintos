@@ -29,14 +29,49 @@ Robert Gasparyan <robertga@stanford.edu>
 >> A1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+/* On-disk inode.
+   Must be exactly BLOCK_SECTOR_SIZE bytes long. */
+struct inode_disk
+  {
+    block_sector_t block_ptrs[PTRS_PER_INODE];     /* Block ptrs in inode */
+    off_t length;                                  /* File size in bytes. */
+    unsigned magic;                                /* Magic number. */
+    uint32_t sectors;                              /* Number of data sectors */
+    uint32_t type;                                 /* I_FILE or I_DIR */
+    uint32_t unused[110];                          /* Not used. */
+  };
+
+/* A block of zeros, used for initalizing memory */
+static char zeros[BLOCK_SECTOR_SIZE];
+
+/* Indirect and doubly indirect blocks on disk */
+struct indir_block_disk
+  {
+    block_sector_t block_ptrs[PTRS_PER_INDIR_BLOCK];    /* Block ptrs in indir block */
+  };
 
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
 
+We use 12 direct, 1 indirect and 1 doubly indirect block per inode.
+Each indirect block points to 128 dir blocks, and each doubly indirect 
+block points to 128 indirect blocks;
+The maximum size is 
+
+12 * 512bytes + 1*128*512bytes + 1*128*128*512bytes = 8460288 bytes = 
+= 8.068 MBytes
+ 
 ---- SYNCHRONIZATION ----
 
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
+We use a per inode lock to synchronize extending of a file. So one process
+will have to wait for the other to finish growing the file, write the new
+length to disk and release the lock. At this point the new process will attempt
+to extend the file to a desired size but if the file has already been extended
+to that size by the previous process we just return true.
+Key observation is that processes specify what size they wish the file to be
+extended to, not by how much.
 
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
@@ -45,12 +80,20 @@ Robert Gasparyan <robertga@stanford.edu>
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
+This is prevented by only updating the length of the file after all the data
+has been successfully written into the newly expanded blocks. Since readers
+never read beyond the current file length they will never see zeroed blocks or
+half written data.
+
 >> A5: Explain how your synchronization design provides "fairness".
 >> File access is "fair" if readers cannot indefinitely block writers
 >> or vice versa.  That is, many processes reading from a file cannot
 >> prevent forever another process from writing the file, and many
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
+
+In our implementation reads do not block on writes. And writes block only on
+other writes. So neither readers can block writers indefintly nor visa versa.
 
 ---- RATIONALE ----
 
