@@ -15,24 +15,21 @@
 #define C_WRITE 2
 
 static struct list cache;
-static struct rw_lock cache_lock; // used for metadata
+static struct rw_lock cache_lock; /* Used to protect metadata */
 static bool cache_full;
 static bool running;
 
 struct cache_entry
 {
   struct list_elem elem;   /* For the cache list. */
-  struct list_elem d_elem; /* For the dirty list. */
 
   struct block *block;
   block_sector_t sector;
   bool accessed;                /* True if entry has been used recently. */
   bool loading;                 /* True if entry's data is being loaded. */
   bool dirty;                   /* True if entry's data has been modified. */
-  bool writing_dirty;           /* True if writing to disk. */
-  bool should_read_ahead;
   char data[BLOCK_SECTOR_SIZE]; /* The cached data. */
-  struct rw_lock l;                  /* To synchronize access to the entry. */
+  struct rw_lock l;             /* To synchronize access to the entry. */
 };
 
 void cache_write_dirty (void *aux);
@@ -109,6 +106,9 @@ void cache_write_periodically (void *aux UNUSED)
     }
 }
 
+/* Read SECTOR from BLOCK into BUFFER from the cache. If (BLOCK, SECTOR) is
+   not in the cache, then load it inot the cache and then read it into BUFFER.
+   */
 void cache_read (struct block *block, block_sector_t sector, void *buffer)
 {
   /* If the block is already cached, simply read its entry. */
@@ -129,13 +129,15 @@ void cache_read (struct block *block, block_sector_t sector, void *buffer)
   rw_writer_unlock (&c->l);
 }
 
-void cache_write (struct block *block, block_sector_t sector, const void *buffer)
+/* Write BUFFER into the cache entry for (BLOCK, SECTOR). If no
+   such entry exists, create one and put it into the cache. */
+void cache_write (struct block *block, block_sector_t sector,
+  const void *buffer)
 {
-  // check if cache contains block and sector
+  /* If the block is already cached, simply load the data into it. */
   struct cache_entry *c = cache_get_lock (block, sector, C_WRITE);
   if (c != NULL)
     {
-      c->writing_dirty = false;
       c->accessed = true;
       memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
       c->dirty = true;
@@ -151,8 +153,8 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
   rw_writer_unlock (&c->l);
 }
 
-// Retrieves a cache entry, with either its reader or writer lock held, as
-// specified by LOCK_TYPE.
+/* Retrieve a cache entry for (BLOCK, SECTOR), with either its reader or writer
+   lock held, as specified by LOCK_TYPE. Return NULL if not found. */
 struct cache_entry *cache_get_lock (struct block *block, block_sector_t sector,
   int lock_type)
 {
@@ -183,6 +185,10 @@ struct cache_entry *cache_get_lock (struct block *block, block_sector_t sector,
   return NULL;
 }
 
+/* Insert an entry for (BLOCK, SECTOR) into the cache, if no such
+   entry exists. Evict an entry if necessary, using the second-chance
+   algorithm. Return with the cache entry's writer lock held; return
+   NULL on failure. */
 struct cache_entry *cache_insert_write_lock (struct block *block,
   block_sector_t sector)
 {
@@ -202,6 +208,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
         }
     }
 
+  /* Evict an entry if necessary. */
   if (cache_full || list_size (&cache) >= NUM_CACHE_BLOCKS)
     {
       cache_full = true;
@@ -212,19 +219,16 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
 
       while (c->loading || c->accessed || c->dirty)
         {
-          if (c->writing_dirty || c->loading || c->should_read_ahead)
+          /* Skip this entry if its data is being read in. */
+          if (!c->loading)
             {
-              // let I/O finish
-            }
-          else
-            {
+              c->accessed = false;
               if (c->dirty)
                 {
                   block_write (c->block, c->sector, c->data);
                   c->dirty = false;
                   break;
                 }
-              c->accessed = false;
             }
 
           list_push_back (&cache, e);
@@ -237,7 +241,9 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
     {
       c = malloc (sizeof (struct cache_entry));
       if (c == NULL)
-        PANIC ("failed to create cache_entry");
+        {
+          PANIC ("OOM: Failed to create cache_entry");
+        }
       rw_init (&c->l);
     }
 
@@ -251,6 +257,7 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
   return c;
 }
 
+/* Flush the cache back to disk. */
 void cache_flush (void)
 {
   running = false;
@@ -270,13 +277,10 @@ void cache_flush (void)
       if (c->dirty)
         {
           rw_writer_lock (&c->l);
-          c->writing_dirty = true;
           block_write (c->block, c->sector, c->data);
           c->dirty = false;
-          c->writing_dirty = false;
           rw_writer_unlock (&c->l);
         }
-
       free (c);
     }
 
@@ -285,6 +289,8 @@ void cache_flush (void)
   rw_writer_unlock (&cache_lock);
 }
 
+/* Read CHUNK_SIZE bytes from SECTOR_OFS in the entry for
+   (BLOCK, SECTOR) into BUFFER. Create a cache entry if necessary. */
 void cache_read_bytes (struct block *block, block_sector_t sector,
                        int sector_ofs, int chunk_size, void *buffer)
 {
@@ -305,6 +311,8 @@ void cache_read_bytes (struct block *block, block_sector_t sector,
     }
 }
 
+/* Write CHUNK_SIZE bytes from SECTOR_OFS for the cache entry
+   (BLOCK, SECTOR) into BUFFER. Create a cache entry if necessary. */
 void cache_write_bytes (struct block *block, block_sector_t sector,
                         int sector_ofs, int chunk_size, const void *buffer)
 {

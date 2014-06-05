@@ -17,14 +17,11 @@ Robert Gasparyan <robertga@stanford.edu>
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
 
-We were unable to successfully implement read-ahead in our buffer cache, and
-we also were unable to write periodically back to disk (we do, however, have
-write-behind, where each entry is only written upon eviction or when the
-process exits, and filesys_done is called). In case it helps, we have included
-the design and code that we did have for those parts in an appendix, after the
-rest of the design doc. In the section about how we implemented read-ahead, we
-describe how we would have implemented it, and how we attempted to before
-running out of time.
+We were unable to successfully implement read-ahead in our buffer cache, In case
+it helps, we have included the design and code that we did have for those parts
+in an appendix, after the rest of the design doc. In the section about how we
+implemented read-ahead, we describe how we would have implemented it, and how
+we attempted to before running out of time.
 
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
@@ -241,7 +238,8 @@ of the directory being removed.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-/* reader-writer locks for controlling access to cache and cache blocks */
+In threads/synch.h
+/* Reader-writer locks for controlling access to cache and cache blocks */
 struct rw
 {
   int num_readers, num_writers, num_waiting_writers;
@@ -249,7 +247,13 @@ struct rw
   struct condition can_read, can_write;
 };
 
-/* struct identifying a member of the cache (we keep at most 64 of these) */
+In filesys/cache.c:
+static struct list cache;         /* List of entries in the cache. */
+static struct rw_lock cache_lock; /* Used to protect metadata */
+static bool cache_full;           /* Used to prevent unecessary calls to
+                                     calculate cache's length. */
+
+/* Struct identifying a member of the cache (we keep at most 64 of these). */
 struct cache_entry
 {
   struct list_elem elem;   /* For the cache list. */
@@ -260,10 +264,8 @@ struct cache_entry
   bool accessed;                /* True if entry has been used recently. */
   bool loading;                 /* True if entry's data is being loaded. */
   bool dirty;                   /* True if entry's data has been modified. */
-  bool writing_dirty;           /* True if writing to disk. */
-  bool should_read_ahead;       /* True if should be read ahead. */
   char data[BLOCK_SECTOR_SIZE]; /* The cached data. */
-  struct rw l;                  /* To synchronize access to the entry. */
+  struct rw_lock l;                  /* To synchronize access to the entry. */
 };
 
 ---- ALGORITHMS ----
@@ -272,18 +274,17 @@ struct cache_entry
 >> block to evict.
 
 We use a version of the clock (second-chance) algorithm, in which we scan
-through the cache to see which blocks haven't recently been accessed. If we
-come across a dirty block, we start writing it to disk and keep scanning. Also,
-if we encounter a block which is waiting on I/O (for example, if it's being
-loaded from disk), we skip it and let it finish loading.
+through the cache to see which blocks haven't recently been accessed. We evict
+the first block we encounter that is not accessed. If it is dirty, then we write
+it to disk before evicting it. Also, if we encounter a block which is waiting
+on I/O (for example, if it's being loaded from disk), we skip it and let it
+finish loading).
 
 >> C3: Describe your implementation of write-behind.
 
 When we write a block, we don't immediately write to disk, but instead just set
-the "dirty" bit on the cache entry. When we come across the block when trying
-to evict from the cache, we spawn off a new thread which starts writing the
-block to disk. This thread resets the dirty bit once it's done, and the block
-can safely be evicted. We also write periodically (every 30 seconds), and in
+the "dirty" bit on the cache entry. If we choose to evict a dirty block, we then
+write it out to disk. We also write periodically (every 30 seconds), and in
 the function cache_flush, which is called when the cache is destroyed.
 
 >> C4: Describe your implementation of read-ahead.
@@ -291,7 +292,7 @@ the function cache_flush, which is called when the cache is destroyed.
 Note: see the note to TAs in the preliminaries.
 
 When a block is read, we automatically insert a cache_entry for the next block
-as well. This cache entry has a bit set indicating that it hasn't been loaded
+as well. This cache entry has a flag set indicating that it hasn't been loaded
 yet; to remedy this, another thread (created at initialization) is constantly
 reading these blocks from disk. It waits on a condition to make sure there are
 blocks to be read, but then fills them in the background.
@@ -311,9 +312,9 @@ it to wait until the first process is done with reading or writing.
 >> processes prevented from attempting to access the block?
 
 We also include a coarse reader-writer lock for the entire cache. "Reading"
-this lock means that a process is accessing blocks, and the "writer" portion
-must be held in order to evict blocks. This has the effect that no process can
-evict blocks while another process is reading them.
+this lock means that a process is accessing the cache list, and the
+"writer" portion must be held in order to evict blocks. This has the effect that
+no process can evict blocks while another process is reading them.
 
 ---- RATIONALE ----
 
