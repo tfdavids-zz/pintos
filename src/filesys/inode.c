@@ -31,7 +31,6 @@ struct inode_disk
     uint32_t unused[110];                          /* Not used. */
   };
 
-
 /* A block of zeros, used for initalizing memory */
 static char zeros[BLOCK_SECTOR_SIZE];
 
@@ -82,6 +81,8 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct lock lock;                   /* Synch access to inode */
+    struct lock d_lock;            /* Synch access to underlying directory,
+                                           if any. */
   };
 
 /* Indirect and doubly indirect blocks on disk */
@@ -91,17 +92,18 @@ struct indir_block_disk
   };
 
 
-size_t inode_grow (struct inode_disk *, off_t);
-bool inode_grow_dir_blocks (struct inode_disk *, size_t);
-bool inode_grow_indir_blocks (struct inode_disk *, size_t);
-bool inode_grow_doubly_indir_blocks (struct inode_disk *, size_t);
-size_t inode_grow_indir_block (struct indir_block_disk *, size_t, size_t);
-bool inode_free (struct inode_disk *);
-bool inode_free_dir_blocks (struct inode_disk *disk_inode);
-bool inode_free_indir_blocks (struct inode_disk *disk_inode);
-bool inode_free_doubly_indir_blocks (struct inode_disk *disk_inode);
-size_t inode_free_indir_block (struct indir_block_disk *, size_t);
-void* calloc_wrapper (size_t, size_t);
+static size_t inode_grow (struct inode_disk *, off_t);
+static bool inode_grow_dir_blocks (struct inode_disk *, size_t);
+static bool inode_grow_indir_blocks (struct inode_disk *, size_t);
+static bool inode_grow_doubly_indir_blocks (struct inode_disk *, size_t);
+static size_t inode_grow_indir_block (struct indir_block_disk *,
+  size_t, size_t);
+static bool inode_free (struct inode_disk *);
+static bool inode_free_dir_blocks (struct inode_disk *disk_inode);
+static bool inode_free_indir_blocks (struct inode_disk *disk_inode);
+static bool inode_free_doubly_indir_blocks (struct inode_disk *disk_inode);
+static size_t inode_free_indir_block (struct indir_block_disk *, size_t);
+static void* calloc_wrapper (size_t, size_t);
 
 
 /* Returns the block device sector that contains byte offset POS
@@ -251,7 +253,8 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  lock_init(&inode->lock);
+  lock_init (&inode->lock);
+  lock_init (&inode->d_lock);
   list_push_front (&open_inodes, &inode->elem);
   rw_writer_unlock (&rw_l);
 
@@ -553,7 +556,7 @@ inode_length (struct inode *inode)
    Returns new length
 */
 
-size_t
+static size_t
 inode_grow (struct inode_disk *disk_inode, off_t new_length)
 {
   size_t new_length_sectors = bytes_to_sectors (new_length);
@@ -590,7 +593,7 @@ inode_grow (struct inode_disk *disk_inode, off_t new_length)
    pages
    return: true on success
 */
-bool
+static bool
 inode_grow_dir_blocks (struct inode_disk *disk_inode, size_t new_length_sectors)
 {
   size_t i;
@@ -617,7 +620,7 @@ inode_grow_dir_blocks (struct inode_disk *disk_inode, size_t new_length_sectors)
 /* Given inode attempt to grow the indirect block to accommodate given number
    of new sectors. Called when direct blocks are full.
    return: true on success */
-bool
+static bool
 inode_grow_indir_blocks (struct inode_disk *disk_inode,
   size_t new_length_sectors)
 {
@@ -667,7 +670,7 @@ inode_grow_indir_blocks (struct inode_disk *disk_inode,
 /* Given inode attempts to grow the doubly indirect block to accommodate given
    number of sectors. Called when direct blocks and the indrect block are full
    return: true on success */
-bool
+static bool
 inode_grow_doubly_indir_blocks (struct inode_disk *disk_inode,
   size_t new_length_sectors)
 {
@@ -742,7 +745,7 @@ inode_grow_doubly_indir_blocks (struct inode_disk *disk_inode,
    new bocks
    Returns: number of successfully added blocks
 */
-size_t
+static size_t
 inode_grow_indir_block (struct indir_block_disk *indir_block,
                         size_t indir_off,
                         size_t new_sectors)
@@ -791,6 +794,7 @@ inode_free (struct inode_disk *disk_inode)
 return: true on success
 */
 bool
+>>>>>>> abf7e7a6f4a145729c32d423d361ebda8e4fe2c1
 inode_free_dir_blocks (struct inode_disk *disk_inode)
 {
   size_t sectors = disk_inode->sectors;
@@ -882,7 +886,7 @@ inode_free_doubly_indir_blocks (struct inode_disk *disk_inode)
 /* Helper function that free indir_block_disk
    Returns: num of freed blocks
 */
-size_t
+static size_t
 inode_free_indir_block (struct indir_block_disk *indir_block,
                         size_t indir_off)
 {  
@@ -899,7 +903,7 @@ inode_free_indir_block (struct indir_block_disk *indir_block,
 }
 
 
-void*
+static void*
 calloc_wrapper (size_t cnt, size_t size)
 {
   void *ptr = calloc (cnt, size);
@@ -918,8 +922,20 @@ inode_is_file (struct inode *inode)
   struct inode_disk disk_inode;
   lock_acquire (&inode->lock);
   block_read (fs_device, inode->sector, &disk_inode);
-  bool ret = (disk_inode.type == I_FILE);
+  bool ret = ((disk_inode.type == I_FILE) &&
+    (inode->sector != ROOT_DIR_SECTOR));
   lock_release (&inode->lock);
 
   return ret;
+}
+
+void
+inode_dir_lock (struct inode *inode)
+{
+  lock_acquire (&inode->d_lock);
+}
+void
+inode_dir_unlock (struct inode *inode)
+{
+  lock_release (&inode->d_lock);
 }
