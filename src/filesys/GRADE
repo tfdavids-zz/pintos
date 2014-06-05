@@ -1,235 +1,247 @@
-../../tests/make-grade ../.. results ../../tests/filesys/Grading.no-vm | tee grade
-warning: test tests/userprog/sc-boundary-3 doesn't count for grading
-warning: test tests/userprog/exec-bound doesn't count for grading
-warning: test tests/userprog/exec-bound-3 doesn't count for grading
-warning: test tests/userprog/exec-bound-2 doesn't count for grading
-TOTAL TESTING SCORE: 100.0%
-ALL TESTED PASSED -- PERFECT SCORE
-
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
-SUMMARY BY TEST SET
-
-Test Set                                      Pts Max  % Ttl  % Max
---------------------------------------------- --- --- ------ ------
-tests/filesys/extended/Rubric.functionality    34/ 34  30.0%/ 30.0%
-tests/filesys/extended/Rubric.robustness       10/ 10  15.0%/ 15.0%
-tests/filesys/extended/Rubric.persistence      23/ 23  20.0%/ 20.0%
-tests/filesys/base/Rubric                      30/ 30  20.0%/ 20.0%
-tests/userprog/Rubric.functionality           108/108  10.0%/ 10.0%
-tests/userprog/Rubric.robustness               88/ 88   5.0%/  5.0%
---------------------------------------------- --- --- ------ ------
-Total                                                 100.0%/100.0%
-
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
-SUMMARY OF INDIVIDUAL TESTS
-
-Functionality of extended file system (tests/filesys/extended/Rubric.functionality):
-	- Test directory support.
-	     1/ 1 tests/filesys/extended/dir-mkdir
-	     3/ 3 tests/filesys/extended/dir-mk-tree
-
-	     1/ 1 tests/filesys/extended/dir-rmdir
-	     3/ 3 tests/filesys/extended/dir-rm-tree
-
-	     5/ 5 tests/filesys/extended/dir-vine
-
-	- Test file growth.
-	     1/ 1 tests/filesys/extended/grow-create
-	     1/ 1 tests/filesys/extended/grow-seq-sm
-	     3/ 3 tests/filesys/extended/grow-seq-lg
-	     3/ 3 tests/filesys/extended/grow-sparse
-	     3/ 3 tests/filesys/extended/grow-two-files
-	     1/ 1 tests/filesys/extended/grow-tell
-	     1/ 1 tests/filesys/extended/grow-file-size
-
-	- Test directory growth.
-	     1/ 1 tests/filesys/extended/grow-dir-lg
-	     1/ 1 tests/filesys/extended/grow-root-sm
-	     1/ 1 tests/filesys/extended/grow-root-lg
-
-	- Test writing from multiple processes.
-	     5/ 5 tests/filesys/extended/syn-rw
-
-	- Section summary.
-	     16/ 16 tests passed
-	     34/ 34 points subtotal
-
-Robustness of file system (tests/filesys/extended/Rubric.robustness):
-	     1/ 1 tests/filesys/extended/dir-empty-name
-	     1/ 1 tests/filesys/extended/dir-open
-	     1/ 1 tests/filesys/extended/dir-over-file
-	     1/ 1 tests/filesys/extended/dir-under-file
-
-	     3/ 3 tests/filesys/extended/dir-rm-cwd
-	     2/ 2 tests/filesys/extended/dir-rm-parent
-	     1/ 1 tests/filesys/extended/dir-rm-root
-
-	- Section summary.
-	      7/  7 tests passed
-	     10/ 10 points subtotal
-
-Persistence of file system (tests/filesys/extended/Rubric.persistence):
-	     1/ 1 tests/filesys/extended/dir-empty-name-persistence
-	     1/ 1 tests/filesys/extended/dir-mk-tree-persistence
-	     1/ 1 tests/filesys/extended/dir-mkdir-persistence
-	     1/ 1 tests/filesys/extended/dir-open-persistence
-	     1/ 1 tests/filesys/extended/dir-over-file-persistence
-	     1/ 1 tests/filesys/extended/dir-rm-cwd-persistence
-	     1/ 1 tests/filesys/extended/dir-rm-parent-persistence
-	     1/ 1 tests/filesys/extended/dir-rm-root-persistence
-	     1/ 1 tests/filesys/extended/dir-rm-tree-persistence
-	     1/ 1 tests/filesys/extended/dir-rmdir-persistence
-	     1/ 1 tests/filesys/extended/dir-under-file-persistence
-	     1/ 1 tests/filesys/extended/dir-vine-persistence
-	     1/ 1 tests/filesys/extended/grow-create-persistence
-	     1/ 1 tests/filesys/extended/grow-dir-lg-persistence
-	     1/ 1 tests/filesys/extended/grow-file-size-persistence
-	     1/ 1 tests/filesys/extended/grow-root-lg-persistence
-	     1/ 1 tests/filesys/extended/grow-root-sm-persistence
-	     1/ 1 tests/filesys/extended/grow-seq-lg-persistence
-	     1/ 1 tests/filesys/extended/grow-seq-sm-persistence
-	     1/ 1 tests/filesys/extended/grow-sparse-persistence
-	     1/ 1 tests/filesys/extended/grow-tell-persistence
-	     1/ 1 tests/filesys/extended/grow-two-files-persistence
-	     1/ 1 tests/filesys/extended/syn-rw-persistence
-
-	- Section summary.
-	     23/ 23 tests passed
-	     23/ 23 points subtotal
-
-Functionality of base file system (tests/filesys/base/Rubric):
-	- Test basic support for small files.
-	     1/ 1 tests/filesys/base/sm-create
-	     2/ 2 tests/filesys/base/sm-full
-	     2/ 2 tests/filesys/base/sm-random
-	     2/ 2 tests/filesys/base/sm-seq-block
-	     3/ 3 tests/filesys/base/sm-seq-random
-
-	- Test basic support for large files.
-	     1/ 1 tests/filesys/base/lg-create
-	     2/ 2 tests/filesys/base/lg-full
-	     2/ 2 tests/filesys/base/lg-random
-	     2/ 2 tests/filesys/base/lg-seq-block
-	     3/ 3 tests/filesys/base/lg-seq-random
-
-	- Test synchronized multiprogram access to files.
-	     4/ 4 tests/filesys/base/syn-read
-	     4/ 4 tests/filesys/base/syn-write
-	     2/ 2 tests/filesys/base/syn-remove
-
-	- Section summary.
-	     13/ 13 tests passed
-	     30/ 30 points subtotal
-
-Functionality of system calls (tests/userprog/Rubric.functionality):
-	- Test argument passing on Pintos command line.
-	     3/ 3 tests/userprog/args-none
-	     3/ 3 tests/userprog/args-single
-	     3/ 3 tests/userprog/args-multiple
-	     3/ 3 tests/userprog/args-many
-	     3/ 3 tests/userprog/args-dbl-space
-
-	- Test "create" system call.
-	     3/ 3 tests/userprog/create-empty
-	     3/ 3 tests/userprog/create-long
-	     3/ 3 tests/userprog/create-normal
-	     3/ 3 tests/userprog/create-exists
-
-	- Test "open" system call.
-	     3/ 3 tests/userprog/open-missing
-	     3/ 3 tests/userprog/open-normal
-	     3/ 3 tests/userprog/open-twice
-
-	- Test "read" system call.
-	     3/ 3 tests/userprog/read-normal
-	     3/ 3 tests/userprog/read-zero
-
-	- Test "write" system call.
-	     3/ 3 tests/userprog/write-normal
-	     3/ 3 tests/userprog/write-zero
-
-	- Test "close" system call.
-	     3/ 3 tests/userprog/close-normal
-
-	- Test "exec" system call.
-	     5/ 5 tests/userprog/exec-once
-	     5/ 5 tests/userprog/exec-multiple
-	     5/ 5 tests/userprog/exec-arg
-
-	- Test "wait" system call.
-	     5/ 5 tests/userprog/wait-simple
-	     5/ 5 tests/userprog/wait-twice
-
-	- Test "exit" system call.
-	     5/ 5 tests/userprog/exit
-
-	- Test "halt" system call.
-	     3/ 3 tests/userprog/halt
-
-	- Test recursive execution of user programs.
-	    15/15 tests/userprog/multi-recurse
-
-	- Test read-only executable feature.
-	     3/ 3 tests/userprog/rox-simple
-	     3/ 3 tests/userprog/rox-child
-	     3/ 3 tests/userprog/rox-multichild
-
-	- Section summary.
-	     28/ 28 tests passed
-	    108/108 points subtotal
-
-Robustness of system calls (tests/userprog/Rubric.robustness):
-	- Test robustness of file descriptor handling.
-	     2/ 2 tests/userprog/close-stdin
-	     2/ 2 tests/userprog/close-stdout
-	     2/ 2 tests/userprog/close-bad-fd
-	     2/ 2 tests/userprog/close-twice
-	     2/ 2 tests/userprog/read-bad-fd
-	     2/ 2 tests/userprog/read-stdout
-	     2/ 2 tests/userprog/write-bad-fd
-	     2/ 2 tests/userprog/write-stdin
-	     2/ 2 tests/userprog/multi-child-fd
-
-	- Test robustness of pointer handling.
-	     3/ 3 tests/userprog/create-bad-ptr
-	     3/ 3 tests/userprog/exec-bad-ptr
-	     3/ 3 tests/userprog/open-bad-ptr
-	     3/ 3 tests/userprog/read-bad-ptr
-	     3/ 3 tests/userprog/write-bad-ptr
-
-	- Test robustness of buffer copying across page boundaries.
-	     3/ 3 tests/userprog/create-bound
-	     3/ 3 tests/userprog/open-boundary
-	     3/ 3 tests/userprog/read-boundary
-	     3/ 3 tests/userprog/write-boundary
-
-	- Test handling of null pointer and empty strings.
-	     2/ 2 tests/userprog/create-null
-	     2/ 2 tests/userprog/open-null
-	     2/ 2 tests/userprog/open-empty
-
-	- Test robustness of system call implementation.
-	     3/ 3 tests/userprog/sc-bad-arg
-	     3/ 3 tests/userprog/sc-bad-sp
-	     5/ 5 tests/userprog/sc-boundary
-	     5/ 5 tests/userprog/sc-boundary-2
-
-	- Test robustness of "exec" and "wait" system calls.
-	     5/ 5 tests/userprog/exec-missing
-	     5/ 5 tests/userprog/wait-bad-pid
-	     5/ 5 tests/userprog/wait-killed
-
-	- Test robustness of exception handling.
-	     1/ 1 tests/userprog/bad-read
-	     1/ 1 tests/userprog/bad-write
-	     1/ 1 tests/userprog/bad-jump
-	     1/ 1 tests/userprog/bad-read2
-	     1/ 1 tests/userprog/bad-write2
-	     1/ 1 tests/userprog/bad-jump2
-
-	- Section summary.
-	     34/ 34 tests passed
-	     88/ 88 points subtotal
-
+mkdir -p build/devices
+mkdir -p build/filesys
+mkdir -p build/lib
+mkdir -p build/lib/kernel
+mkdir -p build/lib/user
+mkdir -p build/tests/filesys/base
+mkdir -p build/tests/filesys/extended
+mkdir -p build/tests/userprog
+mkdir -p build/threads
+mkdir -p build/userprog
+cp ../Makefile.build build/Makefile
+cd build && make grade
+make[1]: Entering directory `/afs/ir.stanford.edu/users/t/d/tdavids/Documents/CS140/pintos/src/filesys/build'
+gcc -m32 -E -nostdinc -I../.. -I../../lib -I../../lib/kernel -P ../../threads/kernel.lds.S > threads/kernel.lds.s
+gcc -m32 -c ../../threads/start.S -o threads/start.o -Wa,--gstabs -nostdinc -I../.. -I../../lib -I../../lib/kernel -DUSERPROG -DFILESYS -MMD -MF threads/start.d
+gcc -m32 -c ../../threads/init.c -o threads/init.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF threads/init.d
+gcc -m32 -c ../../threads/thread.c -o threads/thread.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF threads/thread.d
+gcc -m32 -c ../../threads/switch.S -o threads/switch.o -Wa,--gstabs -nostdinc -I../.. -I../../lib -I../../lib/kernel -DUSERPROG -DFILESYS -MMD -MF threads/switch.d
+gcc -m32 -c ../../threads/interrupt.c -o threads/interrupt.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF threads/interrupt.d
+gcc -m32 -c ../../threads/intr-stubs.S -o threads/intr-stubs.o -Wa,--gstabs -nostdinc -I../.. -I../../lib -I../../lib/kernel -DUSERPROG -DFILESYS -MMD -MF threads/intr-stubs.d
+gcc -m32 -c ../../threads/synch.c -o threads/synch.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF threads/synch.d
+gcc -m32 -c ../../threads/palloc.c -o threads/palloc.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF threads/palloc.d
+gcc -m32 -c ../../threads/malloc.c -o threads/malloc.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF threads/malloc.d
+gcc -m32 -c ../../devices/pit.c -o devices/pit.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/pit.d
+gcc -m32 -c ../../devices/timer.c -o devices/timer.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/timer.d
+gcc -m32 -c ../../devices/kbd.c -o devices/kbd.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/kbd.d
+gcc -m32 -c ../../devices/vga.c -o devices/vga.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/vga.d
+gcc -m32 -c ../../devices/serial.c -o devices/serial.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/serial.d
+gcc -m32 -c ../../devices/block.c -o devices/block.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/block.d
+gcc -m32 -c ../../devices/partition.c -o devices/partition.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/partition.d
+gcc -m32 -c ../../devices/ide.c -o devices/ide.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/ide.d
+gcc -m32 -c ../../devices/input.c -o devices/input.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/input.d
+gcc -m32 -c ../../devices/intq.c -o devices/intq.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/intq.d
+gcc -m32 -c ../../devices/rtc.c -o devices/rtc.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/rtc.d
+gcc -m32 -c ../../devices/shutdown.c -o devices/shutdown.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/shutdown.d
+gcc -m32 -c ../../devices/speaker.c -o devices/speaker.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF devices/speaker.d
+gcc -m32 -c ../../lib/debug.c -o lib/debug.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/debug.d
+gcc -m32 -c ../../lib/random.c -o lib/random.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/random.d
+gcc -m32 -c ../../lib/stdio.c -o lib/stdio.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/stdio.d
+gcc -m32 -c ../../lib/stdlib.c -o lib/stdlib.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/stdlib.d
+gcc -m32 -c ../../lib/string.c -o lib/string.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/string.d
+gcc -m32 -c ../../lib/arithmetic.c -o lib/arithmetic.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/arithmetic.d
+gcc -m32 -c ../../lib/ustar.c -o lib/ustar.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/ustar.d
+gcc -m32 -c ../../lib/kernel/debug.c -o lib/kernel/debug.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/kernel/debug.d
+gcc -m32 -c ../../lib/kernel/list.c -o lib/kernel/list.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/kernel/list.d
+gcc -m32 -c ../../lib/kernel/bitmap.c -o lib/kernel/bitmap.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/kernel/bitmap.d
+gcc -m32 -c ../../lib/kernel/hash.c -o lib/kernel/hash.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/kernel/hash.d
+gcc -m32 -c ../../lib/kernel/console.c -o lib/kernel/console.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF lib/kernel/console.d
+gcc -m32 -c ../../userprog/process.c -o userprog/process.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF userprog/process.d
+gcc -m32 -c ../../userprog/pagedir.c -o userprog/pagedir.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF userprog/pagedir.d
+gcc -m32 -c ../../userprog/exception.c -o userprog/exception.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF userprog/exception.d
+gcc -m32 -c ../../userprog/syscall.c -o userprog/syscall.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF userprog/syscall.d
+gcc -m32 -c ../../userprog/gdt.c -o userprog/gdt.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF userprog/gdt.d
+gcc -m32 -c ../../userprog/tss.c -o userprog/tss.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF userprog/tss.d
+gcc -m32 -c ../../userprog/fdtable.c -o userprog/fdtable.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF userprog/fdtable.d
+gcc -m32 -c ../../filesys/filesys.c -o filesys/filesys.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF filesys/filesys.d
+gcc -m32 -c ../../filesys/free-map.c -o filesys/free-map.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF filesys/free-map.d
+gcc -m32 -c ../../filesys/file.c -o filesys/file.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF filesys/file.d
+gcc -m32 -c ../../filesys/directory.c -o filesys/directory.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF filesys/directory.d
+gcc -m32 -c ../../filesys/inode.c -o filesys/inode.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF filesys/inode.d
+gcc -m32 -c ../../filesys/fsutil.c -o filesys/fsutil.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF filesys/fsutil.d
+gcc -m32 -c ../../filesys/cache.c -o filesys/cache.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/kernel -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers -DUSERPROG -DFILESYS -MMD -MF filesys/cache.d
+ld -melf_i386 -T threads/kernel.lds.s -o kernel.o threads/start.o threads/init.o threads/thread.o threads/switch.o threads/interrupt.o threads/intr-stubs.o threads/synch.o threads/palloc.o threads/malloc.o devices/pit.o devices/timer.o devices/kbd.o devices/vga.o devices/serial.o devices/block.o devices/partition.o devices/ide.o devices/input.o devices/intq.o devices/rtc.o devices/shutdown.o devices/speaker.o lib/debug.o lib/random.o lib/stdio.o lib/stdlib.o lib/string.o lib/arithmetic.o lib/ustar.o lib/kernel/debug.o lib/kernel/list.o lib/kernel/bitmap.o lib/kernel/hash.o lib/kernel/console.o userprog/process.o userprog/pagedir.o userprog/exception.o userprog/syscall.o userprog/gdt.o userprog/tss.o userprog/fdtable.o filesys/filesys.o filesys/free-map.o filesys/file.o filesys/directory.o filesys/inode.o filesys/fsutil.o filesys/cache.o
+objcopy -R .note -R .comment -S kernel.o kernel.bin
+gcc -m32 -c ../../threads/loader.S -o threads/loader.o -Wa,--gstabs -nostdinc -I../.. -I../../lib 
+ld -melf_i386 -N -e 0 -Ttext 0x7c00 --oformat binary -o loader.bin threads/loader.o
+gcc -m32 -c ../../tests/userprog/args.c -o tests/userprog/args.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/args.d
+gcc -m32 -c ../../tests/lib.c -o tests/lib.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/lib.d
+gcc -m32 -c ../../lib/user/entry.c -o lib/user/entry.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF lib/user/entry.d
+gcc -m32 -c ../../lib/user/debug.c -o lib/user/debug.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF lib/user/debug.d
+gcc -m32 -c ../../lib/user/syscall.c -o lib/user/syscall.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF lib/user/syscall.d
+gcc -m32 -c ../../lib/user/console.c -o lib/user/console.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF lib/user/console.d
+rm -f libc.a
+ar r libc.a lib/debug.o lib/random.o lib/stdio.o lib/stdlib.o lib/string.o lib/arithmetic.o lib/ustar.o lib/user/debug.o lib/user/syscall.o lib/user/console.o
+ranlib libc.a
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/args.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/args-none
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-none -a args-none -- -q  -f run args-none < /dev/null 2> tests/userprog/args-none.errors > tests/userprog/args-none.output
+perl -I../.. ../../tests/userprog/args-none.ck tests/userprog/args-none tests/userprog/args-none.result
+[32mpass tests/userprog/args-none
+[0mgcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/args.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/args-single
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-single -a args-single -- -q  -f run 'args-single onearg' < /dev/null 2> tests/userprog/args-single.errors > tests/userprog/args-single.output
+perl -I../.. ../../tests/userprog/args-single.ck tests/userprog/args-single tests/userprog/args-single.result
+[32mpass tests/userprog/args-single
+[0mgcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/args.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/args-multiple
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-multiple -a args-multiple -- -q  -f run 'args-multiple some arguments for you!' < /dev/null 2> tests/userprog/args-multiple.errors > tests/userprog/args-multiple.output
+perl -I../.. ../../tests/userprog/args-multiple.ck tests/userprog/args-multiple tests/userprog/args-multiple.result
+[32mpass tests/userprog/args-multiple
+[0mgcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/args.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/args-many
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-many -a args-many -- -q  -f run 'args-many a b c d e f g h i j k l m n o p q r s t u v' < /dev/null 2> tests/userprog/args-many.errors > tests/userprog/args-many.output
+perl -I../.. ../../tests/userprog/args-many.ck tests/userprog/args-many tests/userprog/args-many.result
+[32mpass tests/userprog/args-many
+[0mgcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/args.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/args-dbl-space
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-dbl-space -a args-dbl-space -- -q  -f run 'args-dbl-space two  spaces!' < /dev/null 2> tests/userprog/args-dbl-space.errors > tests/userprog/args-dbl-space.output
+perl -I../.. ../../tests/userprog/args-dbl-space.ck tests/userprog/args-dbl-space tests/userprog/args-dbl-space.result
+[32mpass tests/userprog/args-dbl-space
+[0mgcc -m32 -c ../../tests/userprog/sc-bad-sp.c -o tests/userprog/sc-bad-sp.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/sc-bad-sp.d
+gcc -m32 -c ../../tests/main.c -o tests/main.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/main.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/sc-bad-sp.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/sc-bad-sp
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/sc-bad-sp -a sc-bad-sp -- -q  -f run sc-bad-sp < /dev/null 2> tests/userprog/sc-bad-sp.errors > tests/userprog/sc-bad-sp.output
+perl -I../.. ../../tests/userprog/sc-bad-sp.ck tests/userprog/sc-bad-sp tests/userprog/sc-bad-sp.result
+[32mpass tests/userprog/sc-bad-sp
+[0mgcc -m32 -c ../../tests/userprog/sc-bad-arg.c -o tests/userprog/sc-bad-arg.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/sc-bad-arg.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/sc-bad-arg.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/sc-bad-arg
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/sc-bad-arg -a sc-bad-arg -- -q  -f run sc-bad-arg < /dev/null 2> tests/userprog/sc-bad-arg.errors > tests/userprog/sc-bad-arg.output
+perl -I../.. ../../tests/userprog/sc-bad-arg.ck tests/userprog/sc-bad-arg tests/userprog/sc-bad-arg.result
+[32mpass tests/userprog/sc-bad-arg
+[0mgcc -m32 -c ../../tests/userprog/sc-boundary.c -o tests/userprog/sc-boundary.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/sc-boundary.d
+gcc -m32 -c ../../tests/userprog/boundary.c -o tests/userprog/boundary.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/boundary.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/sc-boundary.o tests/userprog/boundary.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/sc-boundary
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/sc-boundary -a sc-boundary -- -q  -f run sc-boundary < /dev/null 2> tests/userprog/sc-boundary.errors > tests/userprog/sc-boundary.output
+perl -I../.. ../../tests/userprog/sc-boundary.ck tests/userprog/sc-boundary tests/userprog/sc-boundary.result
+[32mpass tests/userprog/sc-boundary
+[0mgcc -m32 -c ../../tests/userprog/sc-boundary-2.c -o tests/userprog/sc-boundary-2.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/sc-boundary-2.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/sc-boundary-2.o tests/userprog/boundary.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/sc-boundary-2
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/sc-boundary-2 -a sc-boundary-2 -- -q  -f run sc-boundary-2 < /dev/null 2> tests/userprog/sc-boundary-2.errors > tests/userprog/sc-boundary-2.output
+perl -I../.. ../../tests/userprog/sc-boundary-2.ck tests/userprog/sc-boundary-2 tests/userprog/sc-boundary-2.result
+[32mpass tests/userprog/sc-boundary-2
+[0mgcc -m32 -c ../../tests/userprog/sc-boundary-3.c -o tests/userprog/sc-boundary-3.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/sc-boundary-3.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/sc-boundary-3.o tests/userprog/boundary.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/sc-boundary-3
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/sc-boundary-3 -a sc-boundary-3 -- -q  -f run sc-boundary-3 < /dev/null 2> tests/userprog/sc-boundary-3.errors > tests/userprog/sc-boundary-3.output
+perl -I../.. ../../tests/userprog/sc-boundary-3.ck tests/userprog/sc-boundary-3 tests/userprog/sc-boundary-3.result
+[32mpass tests/userprog/sc-boundary-3
+[0mgcc -m32 -c ../../tests/userprog/halt.c -o tests/userprog/halt.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/halt.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/halt.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/halt
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/halt -a halt -- -q  -f run halt < /dev/null 2> tests/userprog/halt.errors > tests/userprog/halt.output
+perl -I../.. ../../tests/userprog/halt.ck tests/userprog/halt tests/userprog/halt.result
+[32mpass tests/userprog/halt
+[0mgcc -m32 -c ../../tests/userprog/exit.c -o tests/userprog/exit.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/exit.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/exit.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/exit
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/exit -a exit -- -q  -f run exit < /dev/null 2> tests/userprog/exit.errors > tests/userprog/exit.output
+perl -I../.. ../../tests/userprog/exit.ck tests/userprog/exit tests/userprog/exit.result
+[32mpass tests/userprog/exit
+[0mgcc -m32 -c ../../tests/userprog/create-normal.c -o tests/userprog/create-normal.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/create-normal.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/create-normal.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/create-normal
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-normal -a create-normal -- -q  -f run create-normal < /dev/null 2> tests/userprog/create-normal.errors > tests/userprog/create-normal.output
+perl -I../.. ../../tests/userprog/create-normal.ck tests/userprog/create-normal tests/userprog/create-normal.result
+[32mpass tests/userprog/create-normal
+[0mgcc -m32 -c ../../tests/userprog/create-empty.c -o tests/userprog/create-empty.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/create-empty.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/create-empty.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/create-empty
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-empty -a create-empty -- -q  -f run create-empty < /dev/null 2> tests/userprog/create-empty.errors > tests/userprog/create-empty.output
+perl -I../.. ../../tests/userprog/create-empty.ck tests/userprog/create-empty tests/userprog/create-empty.result
+[32mpass tests/userprog/create-empty
+[0mgcc -m32 -c ../../tests/userprog/create-null.c -o tests/userprog/create-null.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/create-null.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/create-null.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/create-null
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-null -a create-null -- -q  -f run create-null < /dev/null 2> tests/userprog/create-null.errors > tests/userprog/create-null.output
+perl -I../.. ../../tests/userprog/create-null.ck tests/userprog/create-null tests/userprog/create-null.result
+[32mpass tests/userprog/create-null
+[0mgcc -m32 -c ../../tests/userprog/create-bad-ptr.c -o tests/userprog/create-bad-ptr.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/create-bad-ptr.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/create-bad-ptr.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/create-bad-ptr
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-bad-ptr -a create-bad-ptr -- -q  -f run create-bad-ptr < /dev/null 2> tests/userprog/create-bad-ptr.errors > tests/userprog/create-bad-ptr.output
+perl -I../.. ../../tests/userprog/create-bad-ptr.ck tests/userprog/create-bad-ptr tests/userprog/create-bad-ptr.result
+[32mpass tests/userprog/create-bad-ptr
+[0mgcc -m32 -c ../../tests/userprog/create-long.c -o tests/userprog/create-long.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/create-long.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/create-long.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/create-long
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-long -a create-long -- -q  -f run create-long < /dev/null 2> tests/userprog/create-long.errors > tests/userprog/create-long.output
+perl -I../.. ../../tests/userprog/create-long.ck tests/userprog/create-long tests/userprog/create-long.result
+[32mpass tests/userprog/create-long
+[0mgcc -m32 -c ../../tests/userprog/create-exists.c -o tests/userprog/create-exists.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/create-exists.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/create-exists.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/create-exists
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-exists -a create-exists -- -q  -f run create-exists < /dev/null 2> tests/userprog/create-exists.errors > tests/userprog/create-exists.output
+perl -I../.. ../../tests/userprog/create-exists.ck tests/userprog/create-exists tests/userprog/create-exists.result
+[32mpass tests/userprog/create-exists
+[0mgcc -m32 -c ../../tests/userprog/create-bound.c -o tests/userprog/create-bound.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/create-bound.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/create-bound.o tests/userprog/boundary.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/create-bound
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-bound -a create-bound -- -q  -f run create-bound < /dev/null 2> tests/userprog/create-bound.errors > tests/userprog/create-bound.output
+perl -I../.. ../../tests/userprog/create-bound.ck tests/userprog/create-bound tests/userprog/create-bound.result
+[32mpass tests/userprog/create-bound
+[0mgcc -m32 -c ../../tests/userprog/open-normal.c -o tests/userprog/open-normal.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/open-normal.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/open-normal.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/open-normal
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-normal -a open-normal -p ../../tests/userprog/sample.txt -a sample.txt -- -q  -f run open-normal < /dev/null 2> tests/userprog/open-normal.errors > tests/userprog/open-normal.output
+perl -I../.. ../../tests/userprog/open-normal.ck tests/userprog/open-normal tests/userprog/open-normal.result
+[32mpass tests/userprog/open-normal
+[0mgcc -m32 -c ../../tests/userprog/open-missing.c -o tests/userprog/open-missing.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/open-missing.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/open-missing.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/open-missing
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-missing -a open-missing -- -q  -f run open-missing < /dev/null 2> tests/userprog/open-missing.errors > tests/userprog/open-missing.output
+perl -I../.. ../../tests/userprog/open-missing.ck tests/userprog/open-missing tests/userprog/open-missing.result
+[32mpass tests/userprog/open-missing
+[0mgcc -m32 -c ../../tests/userprog/open-boundary.c -o tests/userprog/open-boundary.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/open-boundary.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/open-boundary.o tests/userprog/boundary.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/open-boundary
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-boundary -a open-boundary -p ../../tests/userprog/sample.txt -a sample.txt -- -q  -f run open-boundary < /dev/null 2> tests/userprog/open-boundary.errors > tests/userprog/open-boundary.output
+perl -I../.. ../../tests/userprog/open-boundary.ck tests/userprog/open-boundary tests/userprog/open-boundary.result
+[32mpass tests/userprog/open-boundary
+[0mgcc -m32 -c ../../tests/userprog/open-empty.c -o tests/userprog/open-empty.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/open-empty.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/open-empty.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/open-empty
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-empty -a open-empty -- -q  -f run open-empty < /dev/null 2> tests/userprog/open-empty.errors > tests/userprog/open-empty.output
+perl -I../.. ../../tests/userprog/open-empty.ck tests/userprog/open-empty tests/userprog/open-empty.result
+[32mpass tests/userprog/open-empty
+[0mgcc -m32 -c ../../tests/userprog/open-null.c -o tests/userprog/open-null.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/open-null.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/open-null.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/open-null
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-null -a open-null -- -q  -f run open-null < /dev/null 2> tests/userprog/open-null.errors > tests/userprog/open-null.output
+perl -I../.. ../../tests/userprog/open-null.ck tests/userprog/open-null tests/userprog/open-null.result
+[32mpass tests/userprog/open-null
+[0mgcc -m32 -c ../../tests/userprog/open-bad-ptr.c -o tests/userprog/open-bad-ptr.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/open-bad-ptr.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/open-bad-ptr.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/open-bad-ptr
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-bad-ptr -a open-bad-ptr -- -q  -f run open-bad-ptr < /dev/null 2> tests/userprog/open-bad-ptr.errors > tests/userprog/open-bad-ptr.output
+perl -I../.. ../../tests/userprog/open-bad-ptr.ck tests/userprog/open-bad-ptr tests/userprog/open-bad-ptr.result
+[32mpass tests/userprog/open-bad-ptr
+[0mgcc -m32 -c ../../tests/userprog/open-twice.c -o tests/userprog/open-twice.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/open-twice.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/open-twice.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/open-twice
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-twice -a open-twice -p ../../tests/userprog/sample.txt -a sample.txt -- -q  -f run open-twice < /dev/null 2> tests/userprog/open-twice.errors > tests/userprog/open-twice.output
+perl -I../.. ../../tests/userprog/open-twice.ck tests/userprog/open-twice tests/userprog/open-twice.result
+[32mpass tests/userprog/open-twice
+[0mgcc -m32 -c ../../tests/userprog/close-normal.c -o tests/userprog/close-normal.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/close-normal.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/close-normal.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/close-normal
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-normal -a close-normal -p ../../tests/userprog/sample.txt -a sample.txt -- -q  -f run close-normal < /dev/null 2> tests/userprog/close-normal.errors > tests/userprog/close-normal.output
+perl -I../.. ../../tests/userprog/close-normal.ck tests/userprog/close-normal tests/userprog/close-normal.result
+[32mpass tests/userprog/close-normal
+[0mgcc -m32 -c ../../tests/userprog/close-twice.c -o tests/userprog/close-twice.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/close-twice.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/close-twice.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/close-twice
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-twice -a close-twice -p ../../tests/userprog/sample.txt -a sample.txt -- -q  -f run close-twice < /dev/null 2> tests/userprog/close-twice.errors > tests/userprog/close-twice.output
+perl -I../.. ../../tests/userprog/close-twice.ck tests/userprog/close-twice tests/userprog/close-twice.result
+[32mpass tests/userprog/close-twice
+[0mgcc -m32 -c ../../tests/userprog/close-stdin.c -o tests/userprog/close-stdin.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/close-stdin.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/close-stdin.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/close-stdin
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-stdin -a close-stdin -- -q  -f run close-stdin < /dev/null 2> tests/userprog/close-stdin.errors > tests/userprog/close-stdin.output
+perl -I../.. ../../tests/userprog/close-stdin.ck tests/userprog/close-stdin tests/userprog/close-stdin.result
+[32mpass tests/userprog/close-stdin
+[0mgcc -m32 -c ../../tests/userprog/close-stdout.c -o tests/userprog/close-stdout.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/close-stdout.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/close-stdout.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/close-stdout
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-stdout -a close-stdout -- -q  -f run close-stdout < /dev/null 2> tests/userprog/close-stdout.errors > tests/userprog/close-stdout.output
+perl -I../.. ../../tests/userprog/close-stdout.ck tests/userprog/close-stdout tests/userprog/close-stdout.result
+[32mpass tests/userprog/close-stdout
+[0mgcc -m32 -c ../../tests/userprog/close-bad-fd.c -o tests/userprog/close-bad-fd.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/close-bad-fd.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/close-bad-fd.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/close-bad-fd
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-bad-fd -a close-bad-fd -- -q  -f run close-bad-fd < /dev/null 2> tests/userprog/close-bad-fd.errors > tests/userprog/close-bad-fd.output
+perl -I../.. ../../tests/userprog/close-bad-fd.ck tests/userprog/close-bad-fd tests/userprog/close-bad-fd.result
+[32mpass tests/userprog/close-bad-fd
+[0mgcc -m32 -c ../../tests/userprog/read-normal.c -o tests/userprog/read-normal.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/read-normal.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/read-normal.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/read-normal
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-normal -a read-normal -p ../../tests/userprog/sample.txt -a sample.txt -- -q  -f run read-normal < /dev/null 2> tests/userprog/read-normal.errors > tests/userprog/read-normal.output
+perl -I../.. ../../tests/userprog/read-normal.ck tests/userprog/read-normal tests/userprog/read-normal.result
+[32mpass tests/userprog/read-normal
+[0mgcc -m32 -c ../../tests/userprog/read-bad-ptr.c -o tests/userprog/read-bad-ptr.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/read-bad-ptr.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/read-bad-ptr.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/read-bad-ptr
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-bad-ptr -a read-bad-ptr -p ../../tests/userprog/sample.txt -a sample.txt -- -q  -f run read-bad-ptr < /dev/null 2> tests/userprog/read-bad-ptr.errors > tests/userprog/read-bad-ptr.output
+perl -I../.. ../../tests/userprog/read-bad-ptr.ck tests/userprog/read-bad-ptr tests/userprog/read-bad-ptr.result
+[32mpass tests/userprog/read-bad-ptr
+[0mgcc -m32 -c ../../tests/userprog/read-boundary.c -o tests/userprog/read-boundary.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/read-boundary.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/read-boundary.o tests/userprog/boundary.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/read-boundary
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-boundary -a read-boundary -p ../../tests/userprog/sample.txt -a sample.txt -- -q  -f run read-boundary < /dev/null 2> tests/userprog/read-boundary.errors > tests/userprog/read-boundary.output
+perl -I../.. ../../tests/userprog/read-boundary.ck tests/userprog/read-boundary tests/userprog/read-boundary.result
+[32mpass tests/userprog/read-boundary
+[0mgcc -m32 -c ../../tests/userprog/read-zero.c -o tests/userprog/read-zero.o -g -msoft-float -O -fno-stack-protector -nostdinc -I../.. -I../../lib -I../../lib/user -I. -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wsystem-headers  -MMD -MF tests/userprog/read-zero.d
+gcc -m32  -Wl,--build-id=none -nostdlib -static -Wl,-T,../../lib/user/user.lds tests/userprog/read-zero.o tests/main.o tests/lib.o lib/user/entry.o libc.a -o tests/userprog/read-zero
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-zero -a read-zero -p ../../tests/userprog/sample.txt -a sample.txt -- -q  -f run read-zero < /dev/null 2> tests/userprog/read-zero.errors > tests/userprog/read-zero.output
+perl -I../.. ../../tests/userprog/read-zero.ck tests/userprog/read-zero tests/userprog/read-zero.result
+make[1]: Leaving directory `/afs/ir.stanford.edu/users/t/d/tdavids/Documents/CS140/pintos/src/filesys/build'
