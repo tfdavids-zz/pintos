@@ -34,7 +34,7 @@ dir_create (block_sector_t sector, size_t entry_cnt)
 }
 
 /* Opens and returns the directory for the given INODE, of which
-   it takes ownership.  Returns a null pointer on failure. */
+   it takes ownership. Returns a null pointer on failure. */
 struct dir *
 dir_open (struct inode *inode) 
 {
@@ -146,16 +146,16 @@ dir_lookup (const struct dir *dir, const char *name,
   return *inode != NULL;
 }
 
-/* Resolves a path, storing the bottom-most directiroy in *dir and the
+/* Resolves a PATH, storing the bottom-most directiroy in *DIR and the
    file or directory name in the name buffer. Returns true if and only if the
    resolution was successful.
 
-   Precondition: name[] must be at least NAME_MAX + 1 bytes long.
+   Precondition: NAME[] must be at least NAME_MAX + 1 bytes long.
    NB: Success does not necessarily imply that a file or directory with
-       name 'name' exists in the outputted directory. dir_lookup should be
-       invoked with parameters dir and name in order to check whether name
-       really does exist in dir.
-   NB: On success, it is the user's responsibility to close *dir. */
+       name NAME exists in the outputted directory. dir_lookup should be
+       invoked with parameters *DIR and NAME in order to check whether NAME
+       really does exist in *DIR.
+   NB: On success, it is the user's responsibility to close *DIR. */
 bool
 dir_resolve_path (const char *path, struct dir **dir, char name[])
 {
@@ -223,7 +223,7 @@ dir_resolve_path (const char *path, struct dir **dir, char name[])
           goto done;
         }
 
-      /* close old dir, open new dir, advance left. */
+      /* The lookup succeeded; open the new directory and close the old one. */
       struct dir *new_dir = dir_open_inumber (curr_dir_ent.inode_sector);
       inode_dir_unlock (curr_dir->inode);
       dir_close (curr_dir);
@@ -251,12 +251,11 @@ dir_resolve_path (const char *path, struct dir **dir, char name[])
   return success;
 }
 
-/* Adds an entry named NAME to DIR, which must not already contain a
-   entry by that name.  The entry's inode is in sector
-   INODE_SECTOR.
+/* Adds an entry named NAME to DIR, which must not already contain an
+   entry by that name.  The entry's inode is in sector INODE_SECTOR.
    Returns true if successful, false on failure.
-   Fails if NAME is invalid (i.e. too long) or a disk or memory
-   error occurs. */
+   Fails if NAME is invalid (i.e. too long or in use), if a disk or memory
+   error occurs, or if DIR is removed. */
 bool
 dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 {
@@ -308,8 +307,12 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 }
 
 /* Removes any entry for NAME in DIR.
-   Returns true if successful, false on failure,
-   which occurs only if there is no file with the given NAME. */
+   Returns true if successful, false on failure.
+
+   In particular, failure might occur if there is no file for the
+   given NAME; if NAME is a directory in DIR but open (or a
+   working directory); or if NAME is a directory but an attempt
+   to remove it fails (e.g., if an inode_write fails). */
 bool
 dir_remove (struct dir *dir, const char *name) 
 {
@@ -344,6 +347,7 @@ dir_remove (struct dir *dir, const char *name)
           goto done;
         }
 
+      /* Ensure that the directory is empty. */
       dir_rm = dir_open (inode);
       struct dir_entry curr;
       off_t pos;
@@ -358,7 +362,8 @@ dir_remove (struct dir *dir, const char *name)
             }
         }
 
-      /* Remove . and .. */
+      /* Mark the current and parent directories as not used, so that
+         they cannot be accessed after removal of this directory. */
       struct dir_entry curr_dir, prev_dir;
       off_t curr_dir_ofs, prev_dir_ofs;
       if (!lookup (dir_rm, CURR_DIR, &curr_dir, &curr_dir_ofs) ||

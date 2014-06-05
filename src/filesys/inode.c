@@ -81,7 +81,7 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct lock lock;                   /* Synch access to inode */
-    struct lock d_lock;            /* Synch access to underlying directory,
+    struct lock d_lock;                 /* Synch access to underlying directory,
                                            if any. */
   };
 
@@ -786,7 +786,6 @@ inode_free (struct inode_disk *disk_inode)
 return: true on success
 */
 bool
->>>>>>> abf7e7a6f4a145729c32d423d361ebda8e4fe2c1
 inode_free_dir_blocks (struct inode_disk *disk_inode)
 {
   size_t sectors = disk_inode->sectors;
