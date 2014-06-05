@@ -17,6 +17,15 @@ Robert Gasparyan <robertga@stanford.edu>
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
 
+We were unable to successfully implement read-ahead in our buffer cache, and
+we also were unable to write periodically back to disk (we do, however, have
+write-behind, where each entry is only written upon eviction or when the
+process exits, and filesys_done is called). In case it helps, we have included
+the design and code that we did have for those parts in an appendix, after the
+rest of the design doc. In the section about how we implemented read-ahead, we
+describe how we would have implemented it, and how we attempted to before
+running out of time.
+
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
@@ -215,6 +224,8 @@ the function cache_flush, which is called when the cache is destroyed.
 
 >> C4: Describe your implementation of read-ahead.
 
+Note: see the note to TAs in the preliminaries.
+
 When a block is read, we automatically insert a cache_entry for the next block
 as well. This cache entry has a bit set indicating that it hasn't been loaded
 yet; to remedy this, another thread (created at initialization) is constantly
@@ -278,7 +289,10 @@ the quarter.
 
 >> Any other comments?
 
-Appendix: unused code
+                APPENDIX: UNUSED CODE
+                ====================
+
+  // thread_create ("write-periodically", PRI_MIN, cache_write_periodically, NULL);
 
 /*
 void cache_write_periodically (void *aux UNUSED)
@@ -301,8 +315,12 @@ void cache_write_periodically (void *aux UNUSED)
           c = list_entry (e, struct cache_entry, elem);
           if (c->dirty)
             {
+              rw_reader_lock (&c->l);
               c->writing_dirty = true;
-              thread_create ("write-behind", PRI_DEFAULT, cache_write_dirty, c);
+              block_write (c->block, c->sector, c->data);
+              c->writing_dirty = false;
+              c->dirty = false;
+              rw_reader_unlock (&c->l);
             }
         }
 
@@ -310,6 +328,12 @@ void cache_write_periodically (void *aux UNUSED)
     }
 }
 */
+
+//
+// /* For reading ahead. */
+// static struct list read_queue;
+// static struct condition read_queue_empty;
+// static struct lock read_queue_lock;
 
 // /* TODO */
 // void
