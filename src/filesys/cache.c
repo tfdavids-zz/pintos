@@ -74,9 +74,6 @@ void cache_init (void)
 
 void cache_read (struct block *block, block_sector_t sector, void *buffer)
 {
-  block_read (block, sector, buffer);
-  return;
-
   /* If the block is already cached, simply read its entry. */
   struct cache_entry *c = cache_get_lock (block, sector, C_READ);
   if (c != NULL)
@@ -118,8 +115,8 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
       c->accessed = true;
       memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
       c->dirty = true;
-      block_write (block, sector, c->data);
-      c->dirty = false;
+      //block_write (block, sector, c->data);
+      //c->dirty = false;
       rw_writer_unlock (&c->l);
       return;
     }
@@ -129,8 +126,8 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
   memcpy (c->data, buffer, BLOCK_SECTOR_SIZE);
   c->loading = false;
   c->dirty = true;
-  block_write (block, sector, c->data);
-  c->dirty = false;
+  //block_write (block, sector, c->data);
+  //c->dirty = false;
   rw_writer_unlock (&c->l);
 }
 
@@ -175,36 +172,6 @@ void cache_write (struct block *block, block_sector_t sector, const void *buffer
 //   }
 // }
 //
-// /* TODO */
-// void
-// cache_read_ahead (void *aux)
-// {
-//  /* TODO: I suspect that a background thread will not free all
-//     the resources that it is supposed to free. */
-//   thread_current ()->background = true;
-//
-//   while (running)
-//   {
-//     lock_acquire (&read_queue_lock);
-//     while (running && list_empty (&read_queue))
-//       {
-//         cond_wait (&read_queue_empty, &read_queue_lock);
-//       }
-//
-//     struct list_elem *e;
-//     struct cache_entry *c;
-//     for (e = list_pop_front (&read_queue); !list_empty (&read_queue);
-//       e = list_pop_front (&read_queue))
-//       {
-//         c = list_entry (e, struct cache_entry, r_elem);
-//         rw_writer_lock (&c->l);
-//         block_read (c->block, c->sector, c->data);
-//         c->loading = false;
-//         rw_writer_unlock (&c->l);
-//       }
-//     lock_release (&read_queue_lock);
-//   }
-// }
 
 // Retrieves a cache entry, with either its reader or writer lock held, as
 // specified by LOCK_TYPE.
@@ -281,10 +248,10 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
               /* TODO: Acquire a writer lock? */
               if (c->dirty)
                 {
-                  rw_reader_lock (&c->l);
+                  //rw_reader_lock (&c->l);
                   block_write (c->block, c->sector, c->data);
                   c->dirty = false;
-                  rw_reader_unlock (&c->l);
+                  //rw_reader_unlock (&c->l);
                   break;
                   //c->writing_dirty = true;
                   //lock_acquire (&dirty_queue_lock);
@@ -320,7 +287,6 @@ struct cache_entry *cache_insert_write_lock (struct block *block,
 
 void cache_flush (void)
 {
-  return;
   rw_writer_lock (&cache_lock);
 
   struct cache_entry *c;
@@ -366,37 +332,6 @@ void cache_flush (void)
   rw_writer_unlock (&cache_lock);
 }
 
-/*
-void cache_write_periodically (void *aux UNUSED)
-{
-  thread_current ()->background = true;
-
-  struct list_elem *e;
-  struct cache_entry *c;
-
-  while (running)
-    {
-      ASSERT (false);
-      timer_msleep (30000);
-
-      rw_reader_lock (&cache_lock);
-
-      for (e = list_begin (&cache); e != list_end (&cache);
-           e = list_next (e))
-        {
-          c = list_entry (e, struct cache_entry, elem);
-          if (c->dirty)
-            {
-              c->writing_dirty = true;
-              thread_create ("write-behind", PRI_DEFAULT, cache_write_dirty, c);
-            }
-        }
-
-      rw_reader_unlock (&cache_lock);
-    }
-}
-*/
-
 void cache_read_bytes (struct block *block, block_sector_t sector,
                        int sector_ofs, int chunk_size, void *buffer)
 {
@@ -435,8 +370,8 @@ void cache_write_bytes (struct block *block, block_sector_t sector,
       memcpy (c->data + sector_ofs, buffer, chunk_size);
       c->loading = false;
       c->dirty = true;
-      block_write (block, sector, c->data);
-      c->dirty = false;
+      //block_write (block, sector, c->data);
+      //c->dirty = false;
       rw_writer_unlock (&c->l);
     }
 }

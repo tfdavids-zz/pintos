@@ -234,3 +234,67 @@ the quarter.
 >> students in future quarters?
 
 >> Any other comments?
+
+Appendix: unused code
+
+/*
+void cache_write_periodically (void *aux UNUSED)
+{
+  thread_current ()->background = true;
+
+  struct list_elem *e;
+  struct cache_entry *c;
+
+  while (running)
+    {
+      ASSERT (false);
+      timer_msleep (30000);
+
+      rw_reader_lock (&cache_lock);
+
+      for (e = list_begin (&cache); e != list_end (&cache);
+           e = list_next (e))
+        {
+          c = list_entry (e, struct cache_entry, elem);
+          if (c->dirty)
+            {
+              c->writing_dirty = true;
+              thread_create ("write-behind", PRI_DEFAULT, cache_write_dirty, c);
+            }
+        }
+
+      rw_reader_unlock (&cache_lock);
+    }
+}
+*/
+
+// /* TODO */
+// void
+// cache_read_ahead (void *aux)
+// {
+//  /* TODO: I suspect that a background thread will not free all
+//     the resources that it is supposed to free. */
+//   thread_current ()->background = true;
+//
+//   while (running)
+//   {
+//     lock_acquire (&read_queue_lock);
+//     while (running && list_empty (&read_queue))
+//       {
+//         cond_wait (&read_queue_empty, &read_queue_lock);
+//       }
+//
+//     struct list_elem *e;
+//     struct cache_entry *c;
+//     for (e = list_pop_front (&read_queue); !list_empty (&read_queue);
+//       e = list_pop_front (&read_queue))
+//       {
+//         c = list_entry (e, struct cache_entry, r_elem);
+//         rw_writer_lock (&c->l);
+//         block_read (c->block, c->sector, c->data);
+//         c->loading = false;
+//         rw_writer_unlock (&c->l);
+//       }
+//     lock_release (&read_queue_lock);
+//   }
+// }
