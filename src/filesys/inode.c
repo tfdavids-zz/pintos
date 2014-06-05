@@ -74,7 +74,7 @@ get_doubly_indir_off (size_t block)
 
 
 /* In-memory inode. */
-struct inode 
+struct inode
   {
     struct list_elem elem;              /* Element in inode list. */
     block_sector_t sector;              /* Sector number of disk location. */
@@ -84,6 +84,7 @@ struct inode
     struct lock lock;                   /* Synch access to inode */
   };
 
+/* Indirect and doubly indirect blocks on disk */
 struct indir_block_disk
   {
     block_sector_t block_ptrs[PTRS_PER_INDIR_BLOCK];    /* Block ptrs in indir block */
@@ -110,13 +111,11 @@ void* calloc_wrapper (size_t, size_t);
 
    Precondition: Caller holds inode lock. */
 static block_sector_t
-byte_to_sector (const struct inode *inode, off_t pos) 
+byte_to_sector (struct inode_disk *disk_inode, off_t pos)
 {
-  struct inode_disk *disk_inode;
   struct indir_block_disk *indir_block;
   struct indir_block_disk *doubly_indir_block;
 
-  disk_inode = calloc_wrapper (1, sizeof *disk_inode);
   indir_block = calloc_wrapper (1, sizeof *indir_block);
   doubly_indir_block = calloc_wrapper (1, sizeof *doubly_indir_block);
 
@@ -125,7 +124,6 @@ byte_to_sector (const struct inode *inode, off_t pos)
   size_t doubly_indir_off = get_doubly_indir_off (block);
 
   block_sector_t sector_t = -1;
-  block_read (fs_device, inode->sector, disk_inode);
 
   if (pos < disk_inode->length)
     {
@@ -153,7 +151,6 @@ byte_to_sector (const struct inode *inode, off_t pos)
           sector_t = indir_block->block_ptrs[indir_off];
         }
     }
-  free (disk_inode);
   free (indir_block);
   free (doubly_indir_block);
 
@@ -369,13 +366,17 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   off_t bytes_read = 0;
   uint8_t *bounce = NULL;
 
+  struct inode_disk *disk_inode;
+  disk_inode = calloc_wrapper (1, sizeof *disk_inode);
+  block_read (fs_device, inode->sector, disk_inode); /* TODO: cache_read */
+
   while (size > 0) 
     {
       /* Disk sector to read, starting byte offset within sector. */
-      block_sector_t sector_idx = byte_to_sector (inode, offset);
+      block_sector_t sector_idx = byte_to_sector (disk_inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = inode_length (inode) - offset;
+      off_t inode_left = disk_inode->length - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
 
@@ -409,6 +410,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       bytes_read += chunk_size;
     }
   free (bounce);
+  free (disk_inode);
   lock_release (&inode->lock);
 
   return bytes_read;
@@ -423,36 +425,37 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
 {
-  lock_acquire (&inode->lock);
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
   uint8_t *bounce = NULL;
-  
+  bool grown = false;
+  struct inode_disk *disk_inode;
+
   if (inode->deny_write_cnt)
     {
-      lock_release (&inode->lock);
       return 0;
     }
 
+  disk_inode = calloc_wrapper (1, sizeof *disk_inode);
+  block_read (fs_device, inode->sector, disk_inode);
+
   /* Grow the file if beyond EOF */
-  if (offset + size > inode_length (inode))
+  if (offset + size > disk_inode->length)
     {
-      struct inode_disk *disk_inode;
-      disk_inode = calloc_wrapper (1, sizeof *disk_inode);
-      block_read (fs_device, inode->sector, disk_inode);
+      /* Only lock if we are trying to grow the file */
+      lock_acquire (&inode->lock);
       disk_inode->length = inode_grow (disk_inode, offset + size);
-      block_write (fs_device, inode->sector, disk_inode);
-      free (disk_inode);
+      grown = true;
     }
 
   while (size > 0) 
     {
       /* Sector to write, starting byte offset within sector. */
-      block_sector_t sector_idx = byte_to_sector (inode, offset);
+      block_sector_t sector_idx = byte_to_sector (disk_inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = inode_length (inode) - offset;
+      off_t inode_left = disk_inode->length - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
 
@@ -493,8 +496,13 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       bytes_written += chunk_size;
     }
   free (bounce);
+  if (grown)
+    {
+      block_write (fs_device, inode->sector, disk_inode);
+      lock_release (&inode->lock);
+    }
 
-  lock_release (&inode->lock);
+  free (disk_inode);
 
   return bytes_written;
 }

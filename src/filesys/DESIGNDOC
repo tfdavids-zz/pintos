@@ -41,6 +41,17 @@ struct inode_disk
     uint32_t unused[110];                          /* Not used. */
   };
 
+/* In-memory inode. */
+struct inode
+  {
+    struct list_elem elem;              /* Element in inode list. */
+    block_sector_t sector;              /* Sector number of disk location. */
+    int open_cnt;                       /* Number of openers. */
+    bool removed;                       /* True if deleted, false otherwise. */
+    int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
+    struct lock lock;                   /* Synch access to inode */
+  };
+
 /* A block of zeros, used for initalizing memory */
 static char zeros[BLOCK_SECTOR_SIZE];
 
@@ -92,8 +103,10 @@ half written data.
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
 
-In our implementation reads do not block on writes. And writes block only on
-other writes. So neither readers can block writers indefintly nor visa versa.
+In our implementation reads do not block on writes. And writes only block each
+other if they are both trying to grow the file. So neither readers can block
+writers indefintly nor visa versa.
+
 
 ---- RATIONALE ----
 
